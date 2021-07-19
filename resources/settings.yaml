@@ -1,0 +1,106 @@
+%YAML 1.2
+---
+# TODO: group these according to their logical steps
+# TODO: consider the best names for each setting and review settings
+#   that we haven't used in the program yet
+# TODO: should this be broken into seperate files?
+# TODO: Specify Deuterater working directory and program directory
+# TODO: Organize settings into 
+
+
+# Debugging level, using the level keys listed below
+# Level 0: Runs normally (multiprocessing and all)
+# Level 1: Runs non-distributed on a single processor
+debug_level: !!int 0
+
+# Whether or not to automate the partitioning logic
+recognize_available_cores: !!bool False
+
+# This will be used if automation fails or is set to false
+n_processors: !!int 6
+
+# ID file retention time unit
+#   Set to "sec" for seconds or "min" for minutes
+id_file_rt_unit: !!str "sec"
+
+# Whether ID's that are at the beginning and end of an mzML's RT should be excluded.
+#   An ID is removed if its time_window results in looking outside of the mzML's bounds.
+#   i.e. An ID with a rt of 1 would be trimmed when the time_window is 1.5
+trim_ids_to_mzml_bounds: !!bool false
+
+# chunk size, given in observations
+chunk_size: !!int 600
+
+# If a file is less than "chunking_method_threshold" times
+#   "max_chunk_size" lines long, then split the identification
+#   file evenlu among the processors
+chunking_method_threshold: 2
+
+# this is the denominator for the ratio for accepting envelopes
+peak_ratio_denominator: !!int 10
+
+# Time to look in each direction when extracting mzml data
+time_window: !!float 1.5
+
+# Tolerance for differences in parts per million measurements
+# DEBUG: set back to 30 when done
+ppm_window: !!int 30
+
+# Labeling schema key
+label_key:  !!str "tissue"
+
+# labeling sites key needs to be here and in the other id in case usere isn't using peaks
+aa_labeling_sites_path: "aa_labeling_sites.tsv"
+
+# Peak lookback
+peak_lookback: !!int 1
+
+peak_lookahead: !!int 1
+
+baseline_lookback: !!int 100
+
+min_envelopes_to_combine: !!int 10
+
+zscore_cutoff: !!float 1
+
+mz_proximity_tolerance: !!float 0.00
+
+#$min sequence allowed for peptides
+min_aa_sequence_length: !!int 6
+
+#$minimum allowed n value. if smaller, the maximum theoretical delta will be
+#$too small
+min_allowed_n_values: !!int 10
+
+starting_enrichment_table_timepoints: !!int 5
+
+#options are "none", "approximate" or "exact"
+error_estimation: !!str "none" #add
+
+min_non_zero_timepoints_rate: !!int 3
+
+min_allowed_timepoints_enrichment: !!int 3
+
+max_rate_check_step_size: !!float 0.5
+
+minimum_allowed_sequence_rate: !!float 0.0
+
+maximum_allowed_sequence_rate: !!float 1.5
+
+minimum_sequences_to_combine_for_protein_rate: !!int 3
+
+#$if need to turn off just make it negative
+lowest_allowed_norm_isotope: !!float .8
+
+#$if need to turn off make it 5 or higher
+highest_allowed_norm_isotope: !!float 1.2
+
+m0_decreasing_allowed_noise: !!float .15
+
+median_absolute_residuals_cutoff_single_point: !!float .01
+
+median_absolute_residuals_cutoff_two_points: !!float .015
+
+median_absolute_residuals_cutoff_general: !!float .02
+
+desired_points_for_optimization_graph: !!int 25
