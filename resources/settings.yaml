@@ -14,10 +14,10 @@
 debug_level: !!int 0
 
 # Whether or not to automate the partitioning logic
-recognize_available_cores: !!bool False
+recognize_available_cores: !!bool True
 
 # This will be used if automation fails or is set to false
-n_processors: !!int 6
+n_processors: !!int 2
 
 # ID file retention time unit
 #   Set to "sec" for seconds or "min" for minutes
@@ -35,6 +35,11 @@ chunk_size: !!int 600
 #   "max_chunk_size" lines long, then split the identification
 #   file evenlu among the processors
 chunking_method_threshold: 2
+
+# NOTE: antilog(angle) was used previously. Possibly for control 
+# Maximum valid angle for condensing scans together
+max_valid_angle: !!float 1.2
+
 
 # this is the denominator for the ratio for accepting envelopes
 peak_ratio_denominator: !!int 10
@@ -63,7 +68,11 @@ min_envelopes_to_combine: !!int 10
 
 zscore_cutoff: !!float 1
 
-mz_proximity_tolerance: !!float 0.00
+# given in minutes
+rt_proximity_tolerance: !!float 1
+
+# given in parts per million
+mz_proximity_tolerance: !!int 100
 
 #$min sequence allowed for peptides
 min_aa_sequence_length: !!int 6
@@ -74,14 +83,15 @@ min_allowed_n_values: !!int 10
 
 starting_enrichment_table_timepoints: !!int 5
 
+max_enrichment_allowed: !!float .3
+
 #options are "none", "approximate" or "exact"
 error_estimation: !!str "none" #add
 
 min_non_zero_timepoints_rate: !!int 3
 
-min_allowed_timepoints_enrichment: !!int 3
-
-max_rate_check_step_size: !!float 0.5
+#$don't allow less than 4 or it will prevent spline fitting
+min_allowed_timepoints_enrichment: !!int 4
 
 minimum_allowed_sequence_rate: !!float 0.0
 
@@ -104,3 +114,65 @@ median_absolute_residuals_cutoff_two_points: !!float .015
 median_absolute_residuals_cutoff_general: !!float .02
 
 desired_points_for_optimization_graph: !!int 25
+
+
+#$A filter used in many areas for scan combining. If a neutromer peak is below the
+#$a intensity filter, it is not considered to gaussian fitting and is not considered
+#$a valid scan. Default = 20k
+intensity_filter: !!int 20000
+
+ms_level: !!int 1
+
+#The file output the rate groups should be
+# Default = png. Available: png, pdf, svg
+graph_output_format: !!str "png"
+
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ change based on instrument and settings
+
+# How many scans should be looked at when performing a gaussian filter
+# on the scan intensities. Must be an odd number. Default is 9
+sampling_rate: !!int 9
+
+# How many scans should be looked at when using a simple smoothing width. Default = 49 for peptides
+smoothing_width: !!int 49
+
+# What order the simple smoothing algorithm should be used. Default = 3.
+smoothing_order: !!int 3
+
+# The amount of time in minutes that peaks can vary by between charges/adducts to be
+# considered the same. Default = 0.1 for intrafile .2 for interfile
+allowed_peak_variance_min: !!float 0.1
+
+# THe amount of scans allowed between neutromer peaks to be considered a valid peak.
+# Default = 64 for Orbi (proteins)
+allowed_neutromer_peak_variance: !!int 64
+
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ change based on instrument and settings
+
+# A value used to determine how close to baseline the gaussian fitting algorithm
+# peak widths will be chosen from. Default is .9 (90%)
+rel_height: !!float .9
+
+# THe weight that should be used for adduct reproducibility when calculating the score for
+# chromatography peak picking. Default = 1.0
+adduct_weight: !!float 1.0
+
+# The weight that should be used for neutromer peak variance when calculating the score for
+# chromatography peak picking. Default = 1.0
+variance_weight: !!float 1.0
+
+# The weight that should be used for distance from the ID File's RT when calculating the score for
+# chromatography peak picking. Default = 0.7
+ID_weight: !!float 0.7
+
+# The weight that should be used for the intensity when calculating the score for
+# chromatography peak picking. Default = 0.6
+intensity_weight: !!float 0.6
+
+# What created EIC should chromatography be divided on. default = "combined"
+# Other options, "m0", "m1", "m2"
+how_divided: !!str "combined"
+
+# If Chromatography Division should be used in the extractor. If so, if interfile or
+# intrafile comparison should be completed.
+use_chromatography_division: !!str "No"
