@@ -1,3 +1,36 @@
+# -*- coding: utf-8 -*-
+"""
+Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+All rights reserved.
+Redistribution and use in source and binary forms,
+with or without modification, are permitted provided
+that the following conditions are met:
+    * Redistributions of source code must retain the
+      above copyright notice, this list of conditions
+      and the following disclaimer.
+    * Redistributions in binary form must reproduce
+      the above copyright notice, this list of conditions
+      and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the author nor the names of any contributors
+      may be used to endorse or promote products derived
+      from this software without specific prior written
+      permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 import pymzml
 import warnings
 import pandas as pd
@@ -127,7 +160,7 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
             continue
 
         # only deal with ms_level 1 for now
-        if spectrum.ms_level != 1:
+        if spectrum.ms_level != settings.ms_level:
             continue
 
         # determine id indices of peaks searches
@@ -156,8 +189,10 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
                 n_lookahead=settings.peak_lookahead
             )
 
-            lo_baseline_bound = None
-            hi_baseline_bound = None
+            lo_baseline_lookback = None
+            hi_baseline_lookback = None
+            lo_baseline_lookahead = None
+            hi_baseline_lookahead = None
 
             peak_range_start = 0 - settings.peak_lookback
             peak_range_end = id.n_isos + settings.peak_lookahead
@@ -174,12 +209,17 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
 
                 if peak_num == 0:
                     # set the bounds for defining the baseline
-                    lo_baseline_bound = dmt.find_nearest_index(
+                    lo_baseline_lookback = dmt.find_nearest_index(
                         spec_mzs,
                         id.mz - settings.baseline_lookback
                     )
-                    hi_baseline_bound = index
-
+                    hi_baseline_lookback = index
+                    lo_baseline_lookahead = index
+                    hi_baseline_lookahead = dmt.find_nearest_index(
+                        spec_mzs,
+                        id.mz + settings.baseline_lookback
+                    )
+                    
                 # TODO: Do I need to speed this up by removing typecheck?
                 # TODO: Expand this to only one paren/bracket per line?
                 if abs(spec_mzs[index] - search_mz) < reach:
@@ -194,9 +234,6 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
                         # set the envelopes validity flag to false if no peak
                         #   is found, then move on to the next identification
                         envelope.is_valid = False
-                        break
-                    else:
-                        # Unless it is one of the extra peaks
                         envelope.append_peak(Peak(
                             mz=search_mz,
                             # TODO: it might be better to set this to NA
@@ -205,15 +242,34 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
                         ))
 
             # TODO Do i need to speed this up by removing typecheck?
-            if envelope.is_valid:
-                # If all of the peaks have been found, add it to the
-                #   identification (after determining the baseline)
-                # NOTE: baseline is defined as the median abundance of the 100
-                #   mz units preceding the m0 peak
-                envelope.baseline = median(spec_mzs[
-                    dmt.inclusive_slice(lo_baseline_bound, hi_baseline_bound)
-                ])
-                id.append_envelope(envelope)
+            # If all of the peaks have been found, add it to the
+            #   identification (after determining the baseline)
+            # NOTE: baseline is defined as the median abundance of the 100
+            #   mz units preceding the m0 peak
+            
+            # CQ: Changing baseline to be the MAD of 100 m/z datapoints ahead and behind m0 peak.
+            # Adapted from Marginean, I; Tang, K; Smith, RD.; Kelly, R; Picoelectrospray Ionization Mass Spectrometry
+            #   Using Narrow-Bore Chemically Etched Emitters, ASMS, 2013
+            
+            def mad(values):
+                m = median(values)
+                return median([abs(a-m) for a in values])
+            lookback_baseline = [l for l in spec_abs[dmt.inclusive_slice(lo_baseline_lookback, hi_baseline_lookback)]]
+            lookahead_baseline = [l for l in spec_abs[dmt.inclusive_slice(lo_baseline_lookahead, hi_baseline_lookahead)]]
+            
+            lookback_baseline_mz = [l for l in spec_mzs[dmt.inclusive_slice(lo_baseline_lookback, hi_baseline_lookback)]]
+            lookahead_baseline_mz = [l for l in spec_mzs[dmt.inclusive_slice(lo_baseline_lookahead, hi_baseline_lookahead)]]
+            
+            lookback_baseline_combined = [[lookback_baseline[i], lookback_baseline_mz[i]] for i in range(len(lookback_baseline)) if lookback_baseline[i] != 0][-100:]
+            lookahead_baseline_combined = [[lookahead_baseline[i], lookahead_baseline_mz[i]] for i in range(len(lookahead_baseline)) if lookahead_baseline[i] != 0][1:101]
+            
+            lookback_baseline = [l[0] for l in lookback_baseline_combined]
+            lookahead_baseline = [l[0] for l in lookahead_baseline_combined]
+            
+            normal_distribution_scale_factor = 1.4826
+            envelope.baseline = normal_distribution_scale_factor * mad(lookback_baseline + lookahead_baseline)
+
+            id.append_envelope(envelope)
     mzml_fp.close()
 
     for id in ids:
@@ -224,61 +280,59 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
     # TODO: add lookback columns?
 
     # Initialize the dataframe to send back to the main process
-    peak_obs = pd.DataFrame(
+    peak_out = pd.DataFrame(
         index=chunk.index.values,
-        columns=['mzs', 'abundances',
-                 'lookback_mzs', 'lookback_abundances',
-                 'lookahead_mzs', 'lookahead_abundances',
-                 'rt_min', 'rt_max', 'baseline_signal', 'mads',
-                 # 'envelopes_before_angle_filter',
-                 # 'envelopes_after_angle_filter',
-                 # 'envelopes_outside_angle_filter',
-                 # 'deviation_before_angle_filter',
-                 # 'deviation_after_angle_filter',
-                 # 'deviation_outside_angle_filter',
-                 # 'max_m0_abundance',
+        columns=['mzs', 'abundances', 'lookback_mzs', 'lookback_abundances',
+                 'lookahead_mzs', 'lookahead_abundances', 'rt_min', 'rt_max',
+                 'baseline_signal', "mads",
+                 'mzs_list', 'intensities_list', "rt_list", "baseline_list",
+                 'num_scans_combined',
                  'mzml_path']
     )
 
-    # Populate the
-    for row in peak_obs.itertuples():
+    # Populate valid rows.
+    for row in peak_out.itertuples():
         i = row.Index
-        # TODO: rename condensed envelope to found envelope?
-        if ids[i].condensed_envelope:
-            # this will not run if condensed_envelope is still 'None'
-            mzs, abundances = ids[i].condensed_envelope.to_obs()
-            lb_mzs, lb_abundances = ids[i].condensed_envelope.lb_obs()
-            la_mzs, la_abundances = ids[i].condensed_envelope.la_obs()
-            peak_obs.at[i, 'mzs'] = mzs
-            peak_obs.at[i, 'abundances'] = abundances
-            peak_obs.at[i, 'lookback_mzs'] = lb_mzs
-            peak_obs.at[i, 'lookback_abundances'] = lb_abundances
-            peak_obs.at[i, 'lookahead_mzs'] = la_mzs
-            peak_obs.at[i, 'lookahead_abundances'] = la_abundances
-            peak_obs.at[i, 'rt_min'] = ids[i].rt_min
-            peak_obs.at[i, 'rt_max'] = ids[i].rt_max
-            peak_obs.at[i, 'baseline_signal'] = \
-                ids[i].condensed_envelope.baseline
-            peak_obs.at[i, 'mads'] = tuple(ids[i].mads)
-            # peak_obs.at[i, 'envelopes_before_angle_filter'] = \
-            #     ids[i].envelopes_before_angle_filter
-            # peak_obs.at[i, 'envelopes_after_angle_filter'] = \
-            #     ids[i].envelopes_after_angle_filter
-            # Vectorized math removed from for loop, see below
-            # peak_obs.at[i, 'deviation_before_angle_filter'] = \
-            #     ids[i].deviation_before_angle_filter
-            # peak_obs.at[i, 'deviation_after_angle_filter'] = \
-            #     ids[i].deviation_after_angle_filter
-            # peak_obs.at[i, 'deviation_outside_angle_filter'] = \
-            #     ids[i].deviation_outside_angle_filter
-            # peak_obs.at[i, 'max_m0_abundance'] = \
-            #     ids[i].max_m0_abundance
-            peak_obs.at[i, 'mzml_path'] = mzml_path
-        # Vectorized subtraction
-        # peak_obs['envelopes_outside_angle_filter'] = \
-        #     peak_obs['envelopes_before_angle_filter'] - \
-        #     peak_obs['envelopes_after_angle_filter']
+        id = ids[i]
+        
+        if id.condensed_envelope:
+            mzs, abundances = id.condensed_envelope.to_obs()
+            lb_mzs, lb_abundances = id.condensed_envelope.lb_obs()
+            la_mzs, la_abundances = id.condensed_envelope.la_obs()
+            peak_out.at[i, 'mzs'] = mzs
+            peak_out.at[i, 'abundances'] = abundances
+            peak_out.at[i, 'rt_min'] = id.rt_min
+            peak_out.at[i, 'rt_max'] = id.rt_max
+            peak_out.at[i, 'baseline_signal'] = id.condensed_envelope.baseline
+            peak_out.at[i, 'lookback_mzs'] = lb_mzs
+            peak_out.at[i, 'lookback_abundances'] = lb_abundances
+            peak_out.at[i, 'lookahead_mzs'] = la_mzs
+            peak_out.at[i, 'lookahead_abundances'] = la_abundances
+            peak_out.at[i, 'mads'] = str(id.mads)
+            peak_out.at[i, 'num_scans_combined'] = len(id._envelopes)
+        if id._unfiltered_envelopes and len([id._unfiltered_envelopes[a] for a in
+                                             range(len(id._unfiltered_envelopes))
+                                             if id._unfiltered_envelopes[a].is_valid]) >= settings.min_envelopes_to_combine:
+            mz = [[id._unfiltered_envelopes[k]._peaks[j].mz
+                   for j in
+                   range(0, len(id._unfiltered_envelopes[k]._peaks))]
+                  for k in range(len(id._unfiltered_envelopes))]
+            ab = [[id._unfiltered_envelopes[k]._peaks[j].ab
+                   for j in
+                   range(0, len(id._unfiltered_envelopes[k]._peaks))]
+                  for k in range(len(id._unfiltered_envelopes))]
+            rt = [id._unfiltered_envelopes[k].rt for k in range(len(id._unfiltered_envelopes))]
+            baseline_list = [id._unfiltered_envelopes[k].baseline for k in range(len(id._unfiltered_envelopes))]
+    
+            peak_out.at[i, 'mzs_list'] = mz
+            peak_out.at[i, 'intensities_list'] = ab
+            peak_out.at[i, 'rt_list'] = rt
+            peak_out.at[i, 'baseline_list'] = baseline_list
+            
+            # Clear the envelopes to save some space. :)
+            id._unfiltered_envelopes = None
+        peak_out.at[i, 'mzml_path'] = mzml_path
 
-    results = chunk.join(peak_obs)
+    results = chunk.join(peak_out)
 
     return results
