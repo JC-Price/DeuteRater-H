@@ -26,7 +26,8 @@ current_columns = ["Subject ID", "Time", "Enrichment"]
 
 class EnrichmentWindow (QtWidgets.QDialog, loaded_ui):
     def __init__(self, parent = None, min_allowed_times = None, 
-                 starting_num_timepoints = None, outfile = None):
+                 starting_num_timepoints = None, outfile = None,
+                 max_enrichment = None):
         super(EnrichmentWindow, self).__init__(parent)
         #$allows a maximize button
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowSystemMenuHint | 
@@ -34,6 +35,7 @@ class EnrichmentWindow (QtWidgets.QDialog, loaded_ui):
         self.early_exit = True
         self.setupUi(self)
         
+        self.max_enrichment = max_enrichment
         self.outfile = outfile
         self.min_allowed_times = min_allowed_times
         temp_df = pd.read_csv(outfile, sep = "\t")
@@ -117,8 +119,9 @@ class EnrichmentWindow (QtWidgets.QDialog, loaded_ui):
                 continue
             time_value = gtf.basic_number_error_check(
                     time_string, current_columns[1], r)
+            #$need to block enrichment over 100%
             enrichment_value =  gtf.basic_number_error_check(
-                    enrichment_string, current_columns[2], r)
+                    enrichment_string, current_columns[2], r, self.max_enrichment, True)
             for value in [time_value, enrichment_value]: 
                 if type(value) == str:
                     QtWidgets.QMessageBox.information(self, "Error", value)

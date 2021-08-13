@@ -97,7 +97,7 @@ def Paste(table_object):
                 start_column + c).setText(text_grid[r][c])
             
 #$does some basic error checking for numerical data           
-def basic_number_error_check(text_value, column_name, row_number):
+def basic_number_error_check(text_value, column_name, row_number, allowed_max = None, check_max = False):
         append_to_error = " at \"{}\" column, row {}. Correct to proceed.".format(
             column_name, row_number+1)
         if text_value == "":
@@ -108,6 +108,9 @@ def basic_number_error_check(text_value, column_name, row_number):
             return "Non-numerical value" + append_to_error
         if num_value < 0:
             return "Negative value" + append_to_error
-        #$we could also check if it is under some maximum, but for now
-        #$trust the user
+        
+        if check_max:
+            if num_value > allowed_max:
+                return "Value {} higher than the max allowed error of {}".format(num_value, allowed_max) + append_to_error
         return num_value
+    

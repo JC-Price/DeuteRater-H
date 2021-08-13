@@ -52,6 +52,18 @@ class Rate_Setting_Menu(QtWidgets.QDialog, loaded_ui):
                                     settings.time_window, False),
             setting_numerical_info(self.ppm_error, "ppm_window",
                                     settings.ppm_window, True),
+            setting_string_info(self.use_chromatography_division,
+                                "use_chromatography_division",
+                                settings.use_chromatography_division,
+                                False),
+            setting_numerical_info(self.mz_prox_filter,
+                                   "mz_proximity_tolerance",
+                                   settings.mz_proximity_tolerance,
+                                   True),
+            setting_numerical_info(self.rt_prox_filter,
+                                   "rt_proximity_tolerance",
+                                   settings.rt_proximity_tolerance,
+                                   False),
             setting_string_info(self.label_key, "label_key",
                                 settings.label_key, False),
             setting_numerical_info(self.min_AA_length, "min_aa_sequence_length",
@@ -87,7 +99,11 @@ class Rate_Setting_Menu(QtWidgets.QDialog, loaded_ui):
             setting_numerical_info(self.median_absolute_residuals_cutoff_value_general,
                                    "median_absolute_residuals_cutoff_general",
                                    settings.median_absolute_residuals_cutoff_general,
-                                   False)
+                                   False),
+            setting_string_info(self.graph_file_type, 
+                                "graph_output_format",
+                                settings.graph_output_format,
+                                False)
 
             
             ]
@@ -152,14 +168,27 @@ class Rate_Setting_Menu(QtWidgets.QDialog, loaded_ui):
             "chunking_method_threshold" : settings.chunking_method_threshold,
             "peak_ratio_denominator" : settings.peak_ratio_denominator,
             "aa_labeling_sites_path" : settings.aa_labeling_sites_path,
-            "mz_proximity_tolerance": settings.mz_proximity_tolerance,
             "peak_lookback" : settings.peak_lookback,
             "peak_lookahead" : settings.peak_lookahead,
             "baseline_lookback" : settings.baseline_lookback,
             "min_envelopes_to_combine" : settings.min_envelopes_to_combine,
             "zscore_cutoff": settings.zscore_cutoff,
-            "max_rate_check_step_size": settings.max_rate_check_step_size,
-            "desired_points_for_optimization_graph": settings.desired_points_for_optimization_graph
+            "desired_points_for_optimization_graph": settings.desired_points_for_optimization_graph,
+            "max_valid_angle": settings.max_valid_angle,
+            "ms_level": settings.ms_level,
+            "intensity_filter": settings.intensity_filter,
+            "rel_height": settings.rel_height,
+            "sampling_rate": settings.sampling_rate,
+            "smoothing_width": settings.smoothing_width,
+            "smoothing_order": settings.smoothing_order,
+            "allowed_peak_variance_min": settings.allowed_peak_variance_min,
+            "allowed_neutromer_peak_variance": settings.allowed_neutromer_peak_variance,
+            "adduct_weight": settings.adduct_weight,
+            "variance_weight": settings.variance_weight,
+            "ID_weight": settings.ID_weight,
+            "intensity_weight": settings.intensity_weight,
+            "how_divided": settings.how_divided,
+            "max_enrichment_allowed": settings.max_enrichment_allowed
             }
         return unalterable_settings
         
