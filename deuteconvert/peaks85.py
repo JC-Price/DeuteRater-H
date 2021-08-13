@@ -1,3 +1,37 @@
+# -*- coding: utf-8 -*-
+"""
+Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+All rights reserved.
+Redistribution and use in source and binary forms,
+with or without modification, are permitted provided
+that the following conditions are met:
+    * Redistributions of source code must retain the
+      above copyright notice, this list of conditions
+      and the following disclaimer.
+    * Redistributions in binary form must reproduce
+      the above copyright notice, this list of conditions
+      and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the author nor the names of any contributors
+      may be used to endorse or promote products derived
+      from this software without specific prior written
+      permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+
 # This code was made to take in 3 files from PEAKs:
 # feature, peptides, protein-peptides
 # TODO: Drop duplicates after sorting for best results
@@ -38,7 +72,6 @@ class Peaks85(BaseConverter):
     # These are the most likely things to change in different versions
     correct_header_names = {
         'peptide': 'Sequence',
-        # change the name of rt_mean to P.R.T (sec)
         'rt_mean': 'Precursor Retention Time (sec)',
         'rt_start': 'rt_start',
         'rt_end': 'rt_end',
@@ -61,7 +94,6 @@ class Peaks85(BaseConverter):
         'protein_existence': 'protein_existence',
         'sequence_version': 'sequence_version',
         'cf': 'cf',
-        #'theoretical_mass': 'theoretical_mass',
         'neutromers_to_extract': 'neutromers_to_extract',
         'literature_n': 'literature_n'
     }
@@ -76,7 +108,6 @@ class Peaks85(BaseConverter):
         'rt_width',
         'mz',
         'theoretical_mass',
-        #'Peptide Theoretical Mass',
         'z',
         'ptm',
         'quality',
@@ -91,7 +122,6 @@ class Peaks85(BaseConverter):
         'protein_existence',
         'sequence_version',
         'cf',
-        #'theoretical_mass',
         'neutromers_to_extract',
         'literature_n'
     ]
@@ -128,13 +158,13 @@ class Peaks85(BaseConverter):
         )
 
         funcs = [
-            # Peaks85._name_filter,
             Peaks85._initial_filters,
             Peaks85._interpret_aa_sequences,
             Peaks85._set_n_peaks,
             Peaks85._proximity_filter,
             Peaks85._finalize,
-            Peaks85._expand_to_charge_states
+            Peaks85._expand_to_charge_states,
+            Peaks85._proximity_filter
         ]
         for fn in funcs:
             self._id_df = fn(self._id_df)
@@ -181,22 +211,6 @@ class Peaks85(BaseConverter):
             ascending=[True, False, True]
         ).reset_index(drop=True)
         return data
-
-    # Rusty's notes on what changes to make so that we can perform E0 calc in
-    # n-value calc:
-
-    # Here I think we should:
-    #   check if each rep has the seq of interest,
-    #   calc the %std error of RT,
-    #   and if there are > 1 row remaining take the row with
-    #      thelowest %std error and discard the rest.
-
-    # We want this to happen before the merge takes place so that replicates
-    # and non-existing observations are discarded from the repsective files.
-
-    # We also NEED to handle the possible RT rep column names becuase those
-    # are based on user inputs when performing Peaks analyses and will be
-    # different everytime.
 
     def _prepare_feature(self):  # change RT mean (in feature) to rt_mean
         df = pd.read_csv(self.feat_path)
@@ -267,10 +281,6 @@ class Peaks85(BaseConverter):
         df = df.astype({'std_error': np.float})
         df = df.drop(labels=rt_names, axis='columns')
 
-        # df = df.loc[df.groupby('peptide')['std_error'].idxmin(), ]
-        # df = df.loc[df.groupby('peptide')['num_reps'].idxmax(), ]
-        # df = df.loc[df.groupby('peptide')['rt_width'].idxmin(), ]
-        # df = df.loc[df.groupby('peptide')['z'].idxmin(), ]
         df = df.sort_values(
             by=['std_error', 'num_reps', 'rt_width', 'z'],
             ascending=[True, False, True, True]
@@ -300,7 +310,6 @@ class Peaks85(BaseConverter):
             'PTM': 'ptm'
         }
         df = df[keep_cols].rename(columns=rename_cols)
-        # df = df[abs(df['avg_ppm']) < settings.required_unique]  # TODO
         df = df.sort_values(by=['peptide'])
         df = df.drop_duplicates(subset='peptide', keep='first')
         df['ptm'] = df['ptm'].fillna('')
@@ -322,7 +331,6 @@ class Peaks85(BaseConverter):
             'Description': 'protein'
         }
         df = df[keep_cols].rename(columns=rename_cols)
-        # df = df[df['num_unique'] >= settings.required_unique]  # TODO
         df['accession'] = df['accession'].map(Peaks85._parse_accession)
         description_regex = r'(.*?)OS=(.*?)(?:GN=(.*?))?PE=(.*?)SV=(.*)'
         description_strings = df['protein'].str.extract(
@@ -421,16 +429,6 @@ class Peaks85(BaseConverter):
         too_close = list(set(too_close))
         return df.drop(df.index[too_close])
 
-    # @staticmethod
-    # def _name_filter(df, toSortBy, choose='min'):
-    #     if (choose == 'min'):
-    #         df = df.groupby(["peptide"], as_index=False, sort=False).apply(
-    #             lambda x: x[x[toSortBy] == x[toSortBy].min()])
-    #     elif (choose == 'max'):
-    #         df = df.groupby(["peptide"], as_index=False, sort=False).apply(
-    #             lambda x: x[x[toSortBy] == x[toSortBy].max()])
-    #     return df
-
     @staticmethod
     def _expand_to_charge_states(df):
         all_columns = list(df.columns)
@@ -447,20 +445,7 @@ class Peaks85(BaseConverter):
                 quick_list[id_charge_index] = z
                 all_data.append(quick_list)
         return pd.DataFrame(all_data, columns = all_columns)
-        """
-        df_new = pd.DataFrame(columns=df.columns)
 
-        for row in df.iterrows():
-            temp_row = row[1]
-            premass = float(temp_row['Precursor m/z']) * float(temp_row['Identification Charge']) - \
-                      float(temp_row['Identification Charge']) * Peaks85.PROTON_MASS
-            for z in range(settings.min_charge_state, settings.max_charge_state + 1):
-                temp_row['Precursor m/z'] = (premass + float(z) * Peaks85.PROTON_MASS) / float(z)
-                temp_row['Identification Charge'] = float(z)
-                df_new = df_new.append(temp_row)
-
-        return df_new
-        """
     @staticmethod
     def _finalize(df):
         df = df[df['peptide'].str.len() >= 6]  # TODO: Make magic number a setting
