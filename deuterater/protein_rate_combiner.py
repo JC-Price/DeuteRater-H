@@ -1,8 +1,34 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Feb 25 08:33:24 2021
-
-@author: JCPrice
+Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+All rights reserved.
+Redistribution and use in source and binary forms,
+with or without modification, are permitted provided
+that the following conditions are met:
+    * Redistributions of source code must retain the
+      above copyright notice, this list of conditions
+      and the following disclaimer.
+    * Redistributions in binary form must reproduce
+      the above copyright notice, this list of conditions
+      and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the author nor the names of any contributors
+      may be used to endorse or promote products derived
+      from this software without specific prior written
+      permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 """
@@ -14,7 +40,7 @@ also this will not be the rate limiting step so multiprocessing overhead is of
 limited concern
 
 for right now we will keep all of the filters here.  there is an argument to be 
-made for doing the filtering earlier, as teh graphs are made and just merging
+made for doing the filtering earlier, as the graphs are made and just merging
 this with the previous step. However, that needs to complicate the moste complicated
 class, and add sevral booleans for things like if we should make graphs or not.
 Therefore we will start here, and adjust later as needed.
@@ -26,6 +52,7 @@ import os
 
 from functools import partial
 from pathlib import Path
+from tqdm import tqdm  # noqa: 401
 
 import deuterater.settings as settings
 from utils.graphing_tools import graph_average_boxplots
@@ -55,9 +82,13 @@ class Peptides_to_Proteins(object):
                 )
         self.out_path = out_path
         if settings.recognize_available_cores is True:
-            self._n_partitions = mp.cpu_count()
+            self._n_processors = mp.cpu_count()
         else:
-            self._n_partitions = settings.n_processors
+            self._n_processors = settings.n_processors
+        #$breaks windows/python interactions if too many cores are used.  very niche application but still relevant
+        if self._n_processors > 60:
+            self.n_processors = 60
+        
         self.graph_folder = graph_folder_path
         self.make_final_header()
     
@@ -79,7 +110,7 @@ class Peptides_to_Proteins(object):
     def calculate(self):
         self.make_final_header()
         
-        mp_pools = mp.Pool(self._n_partitions)
+        mp_pools = mp.Pool(self._n_processors)
         
         #$unlike rate_calculator.py we'll groupby both at once.  if we need to do anything within the 
         #$sample groups split it out like rate calculator
@@ -89,9 +120,11 @@ class Peptides_to_Proteins(object):
                           max_rate = settings.maximum_allowed_sequence_rate,
                           minimum_required_rates = settings.minimum_sequences_to_combine_for_protein_rate,
                           text_errors = text_errors,
-                          graph_folder = self.graph_folder)
+                          graph_folder = self.graph_folder,
+                          graph_type = settings.graph_output_format)
                           
-        results_list = mp_pools.map(mp_func,[group_tuple for group_tuple in groupby_object])
+        results_list = list(tqdm(mp_pools.map(mp_func,[group_tuple for group_tuple in groupby_object]), 
+                                 total = len(groupby_object), desc = "Protein Roll Up: "))
         mp_pools.close()
         mp_pools.join()
         """
@@ -111,7 +144,8 @@ class Peptides_to_Proteins(object):
         
     @staticmethod
     def _mp_grouping_function(groupby_element, minimum_rate, max_rate,
-                              minimum_required_rates, text_errors, graph_folder):
+                              minimum_required_rates, text_errors, graph_folder,
+                              graph_type):
         id_tuple, id_dataframe = groupby_element
         return_dict = {"Subject ID": id_tuple[0], "Protein ID": id_tuple[1]}
         
@@ -163,8 +197,8 @@ class Peptides_to_Proteins(object):
             return_dict["Rate Std Dev"] = np.std(id_dataframe[rate_column])
         
             protein_graph_title = f"{id_tuple[0]}_{id_tuple[1]}"
-            full_graph_name = os.path.join(graph_folder, f"{protein_graph_title}.pdf")
-            graph_average_boxplots(id_dataframe[rate_column], full_graph_name, protein_graph_title)
+            full_graph_name = os.path.join(graph_folder, f"{protein_graph_title}.{graph_type}")
+            graph_average_boxplots(id_dataframe[rate_column], full_graph_name, protein_graph_title, graph_type)
             
         return pd.Series(return_dict)
         

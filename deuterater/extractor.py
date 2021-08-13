@@ -1,3 +1,36 @@
+# -*- coding: utf-8 -*-
+"""
+Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+All rights reserved.
+Redistribution and use in source and binary forms,
+with or without modification, are permitted provided
+that the following conditions are met:
+    * Redistributions of source code must retain the
+      above copyright notice, this list of conditions
+      and the following disclaimer.
+    * Redistributions in binary form must reproduce
+      the above copyright notice, this list of conditions
+      and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the author nor the names of any contributors
+      may be used to endorse or promote products derived
+      from this software without specific prior written
+      permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 import pandas as pd
 import numpy as np  # noqa: 401
 import pymzml
@@ -49,7 +82,7 @@ class Extractor:  # TODO name change
 
     Attributes
     ----------
-    n_partitions : int
+    n_processors : int
         The number of partitions in which to process the data.
     max_chunk_size : int
         The upper limit of how large a chunk can be
@@ -90,13 +123,16 @@ class Extractor:  # TODO name change
         self.ids = {}
         self._id_chunks = ()
         self._mzml_native_id_bounds = []
-        self.model = {}
+        self.model = pd.DataFrame()
 
         try:
             if settings.recognize_available_cores is True:
-                self._n_partitions = mp.cpu_count()
+                self._n_processors = mp.cpu_count()
             else:
-                self._n_partitions = settings.n_processors
+                self._n_processors = settings.n_processors
+            #$breaks windows/python interactions if too many cores are used.  very niche application but still relevant
+            if self._n_processors > 60:
+                self.n_processors = 60
             self._chunk_size = settings.chunk_size
             self._chunking_threshold = mul(
                 settings.chunking_method_threshold,
@@ -105,7 +141,7 @@ class Extractor:  # TODO name change
             self._id_rt_unit = settings.id_file_rt_unit
             self._trim_ids = settings.trim_ids_to_mzml_bounds
             self._rt_window = settings.time_window
-            self._mp_pool = mp.Pool(self._n_partitions)
+            self._mp_pool = mp.Pool(self._n_processors)
 
             if not os.path.exists(self.out_path):
                 open(self.out_path, 'w').close()
@@ -169,7 +205,7 @@ class Extractor:  # TODO name change
             self.ids['rt'] = self.ids['Precursor Retention Time (sec)']
         self.ids.sort_values(by=['rt'], inplace=True)
         self.ids.reset_index(inplace=True, drop=True)
-
+        """
         # self.ids['n_isos'] = 5  # TODO: Temp value, see note at top of files
         def num_peaks_by_mass(mass):
             if mass < 1500:
@@ -178,10 +214,10 @@ class Extractor:  # TODO name change
                 return 4
             else:
                 return 5
-
-        # self.ids['n_isos'] = self.ids['neutromers_to_extract'].astype(
-        #     np.int8)  # TODO: Temp value, see note at top of files
-        self.ids['n_isos'] = self.ids['Peptide Theoretical Mass'].apply(num_peaks_by_mass)
+        """
+        self.ids['n_isos'] = self.ids['neutromers_to_extract'].astype(
+             np.int8)  # TODO: Temp value, see note at top of files
+        #self.ids['n_isos'] = self.ids['Peptide Theoretical Mass'].apply(num_peaks_by_mass)
 
     def _partition_ids(self, trim):
         '''splits the id file
@@ -200,7 +236,7 @@ class Extractor:  # TODO name change
             self.ids.reset_index(inplace=True, drop=True)
 
         if len(self.ids.index) <= self._chunking_threshold:
-            self._chunk_size = ceil(len(self.ids.index) / self._n_partitions)
+            self._chunk_size = ceil(len(self.ids.index) / self._n_processors)
 
         try:
             self._id_chunks = [
@@ -284,16 +320,20 @@ class Extractor:  # TODO name change
         func = partial(func, self._index_ID_map)  # pass the index mapping
 
         if settings.debug_level == 0:
-            results = list(
-                # tqdm is creates our progress bar
-                tqdm(
-                    self._mp_pool.imap_unordered(
-                        func,
-                        self._id_chunks
-                    ),
-                    total=len(self._id_chunks)
+            try:
+                results = list(
+                    # tqdm is creates our progress bar
+                    tqdm(
+                        self._mp_pool.imap_unordered(
+                            func,
+                            self._id_chunks
+                        ),
+                        total=len(self._id_chunks),
+                            desc="Extracting: "
+                    )
                 )
-            )
+            except Exception as e:
+                print("The output for the data was too large to successfully output. Please use a smaller ID File to fix this issue.")
 
         if settings.debug_level >= 1:
             print('Beginning single-processor extraction.')
@@ -322,7 +362,7 @@ class Extractor:  # TODO name change
                 left_index=True,
                 right_on='id_index'
             )
-            self.model.to_csv(self.out_path, sep='\t', index=False)
+            #self.model.to_csv(self.out_path, sep='\t', index=False)
 
         self._mp_pool.close()
         self._mp_pool.join()

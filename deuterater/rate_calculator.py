@@ -1,3 +1,36 @@
+# -*- coding: utf-8 -*-
+"""
+Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+All rights reserved.
+Redistribution and use in source and binary forms,
+with or without modification, are permitted provided
+that the following conditions are met:
+    * Redistributions of source code must retain the
+      above copyright notice, this list of conditions
+      and the following disclaimer.
+    * Redistributions in binary form must reproduce
+      the above copyright notice, this list of conditions
+      and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the author nor the names of any contributors
+      may be used to endorse or promote products derived
+      from this software without specific prior written
+      permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 '''Calculation of turnover rates
 this is based on the DeuteRater_4.0-4.2 class.  calculate had to be completely 
 revamped.
@@ -80,9 +113,12 @@ class RateCalculator():
         self.graph_folder_isotopes = graph_folder_isotopes
         self.graph_folder_optimization = graph_folder_optimization
         if settings.recognize_available_cores is True:
-            self._n_partitions = mp.cpu_count()
+            self._n_processors = mp.cpu_count()
         else:
-            self._n_partitions = settings.n_processors
+            self._n_processors = settings.n_processors
+        #$breaks windows/python interactions if too many cores are used.  very niche application but still relevant
+        if self._n_processors > 60:
+            self.n_processors = 60
         self.make_final_header()
 
     def write(self):
@@ -125,7 +161,7 @@ class RateCalculator():
         #$first we will group by the sample_id so we can grab the water equation 
         #$we need to split by group anyway since individual sequences will have more
         #$sequences to fit than subjects so sequences should get the multiprocessing
-        for sample_id, id_df in tqdm(self.model.groupby(group_column1)):
+        for sample_id, id_df in tqdm(self.model.groupby(group_column1), desc="Subject: "):
             
             max_sample_time = id_df[time_column].max()
             #$need time sorted for brent calculation.  will attempt to sort here to save time
@@ -154,7 +190,7 @@ class RateCalculator():
     #$second answer https://stackoverflow.com/questions/26187759/parallelize-apply-after-pandas-groupby accessed 12/16/2020
     def run_parallel_groupby(self, groupby_object, sample_id, sample_spline, max_sample_time):
         
-        mp_pools = mp.Pool(self._n_partitions)
+        mp_pools = mp.Pool(self._n_processors)
         #$have to pass the settings explicitly (the global settings doesn't play nice with the multiprocessing)
         mp_func = partial(RateCalculator._rate_calculation,
                           sample_id = sample_id,
@@ -170,10 +206,11 @@ class RateCalculator():
                           median_absolute_residuals_cutoff_two_points = settings.median_absolute_residuals_cutoff_two_points,
                           median_absolute_residuals_cutoff_general = settings.median_absolute_residuals_cutoff_general,
                           desired_points_for_optimization_graph = settings.desired_points_for_optimization_graph,
-                          max_sample_time = max_sample_time
+                          max_sample_time = max_sample_time,
+                          graph_type = settings.graph_output_format
                           )
         #list is needed to make the tqdm work.  imap_unordered only refers to the order the groupbys entries are analyzed in it maintains the time sort of the data. i did check that.
-        results_list = list(tqdm(mp_pools.imap_unordered(mp_func,groupby_object), total = len(groupby_object)))
+        results_list = list(tqdm(mp_pools.imap_unordered(mp_func,groupby_object), total = len(groupby_object), desc="Peptide Rate Calculation: "))
         mp_pools.close()
         mp_pools.join()
         """
@@ -263,7 +300,8 @@ class RateCalculator():
                           median_absolute_residuals_cutoff_two_points,
                           median_absolute_residuals_cutoff_general,
                           desired_points_for_optimization_graph, 
-                          max_sample_time):
+                          max_sample_time,
+                          graph_type):
         #$prepare the data
         sequence_name = groupby_tuple[0]
         seq_df = groupby_tuple[1]
@@ -451,28 +489,28 @@ class RateCalculator():
         theory_times = np.arange(0, max_sample_time + 1, 0.5)
         predicted_isotope_values = mlevels2(theory_times, k=k_value, ibase=y0, nobs = n_isos)
         
-        graph_file_name = sample_id + "_" + sequence_name + "_isotopes.pdf"
+        graph_file_name = sample_id + "_" + sequence_name + "_isotopes."+ graph_type
         graph_name_isotopes = os.path.join(graph_folder_isotopes, graph_file_name )
         if error_estimation != "none":
-            graph_file_name_optimize = sample_id + "_" + sequence_name + "_optimization.pdf"
+            graph_file_name_optimize = sample_id + "_" + sequence_name + "_optimization." +graph_type
             graph_name_optimize = os.path.join(graph_folder_optimization, graph_file_name_optimize)
         
         #$now let's actually graphs. rate first
         graph_rate_results(n_isos, graph_name_isotopes, time_data, 
                        normed_isotope_data, predicted_isotope_values, theory_times,
                        y0,
-                       sample_id + "_" + sequence_name)
+                       sample_id + "_" + sequence_name, graph_type)
         if error_estimation == "approximate":
             error_xv=np.arange(0,bmin*3,bmin*3/desired_points_for_optimization_graph)
             error_array = parabola(error_xv,parfit[0],parfit[1],parfit[2])
             legend_name = "approx for f''"
-            graph_optimization_of_error(k_value, error_xv, error_array, graph_name_optimize, sample_id + "_" + sequence_name, legend_name)
+            graph_optimization_of_error(k_value, error_xv, error_array, graph_name_optimize, sample_id + "_" + sequence_name, legend_name, graph_type)
         elif error_estimation == "exact":
             error_xv=np.arange(0,bmin*3,bmin*3/desired_points_for_optimization_graph)
             legend_name = "real cost of k"
             try :
                 error_array=[sse(x,time_data,normed_isotope_data,y0, n_isos) for x in error_xv]
-                graph_optimization_of_error(k_value, error_xv, error_array, graph_name_optimize, sample_id + "_" + sequence_name, legend_name)
+                graph_optimization_of_error(k_value, error_xv, error_array, graph_name_optimize, sample_id + "_" + sequence_name, legend_name, graph_type)
             except ODEintWarning:
                 error_array = "Error"
         

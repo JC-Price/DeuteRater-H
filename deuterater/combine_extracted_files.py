@@ -1,3 +1,36 @@
+# -*- coding: utf-8 -*-
+"""
+Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+All rights reserved.
+Redistribution and use in source and binary forms,
+with or without modification, are permitted provided
+that the following conditions are met:
+    * Redistributions of source code must retain the
+      above copyright notice, this list of conditions
+      and the following disclaimer.
+    * Redistributions in binary form must reproduce
+      the above copyright notice, this list of conditions
+      and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the author nor the names of any contributors
+      may be used to endorse or promote products derived
+      from this software without specific prior written
+      permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 '''Theoretical Value Preparation
 
 This purpose of this module is to calculate the expected theoretical values
@@ -63,11 +96,13 @@ class CombineExtractedFiles():
         self._data_dict = self.collect_enrichment_data()
         
         if settings.recognize_available_cores is True:
-            self._n_partitions = mp.cpu_count()
+            self._n_processors = mp.cpu_count()
         else:
-            self._n_partitions = settings.n_processors
+            self._n_processors = settings.n_processors
+        if self._n_processors > 60:
+            self.n_processors = 60
 
-        self._mp_pool = mp.Pool(self._n_partitions)
+        self._mp_pool = mp.Pool(self._n_processors)
         self.out_path = out_path
         self.model = None
 
@@ -94,7 +129,8 @@ class CombineExtractedFiles():
             results = list(
                 tqdm(
                     self._mp_pool.imap_unordered(func, args_list),
-                    total=len(self._file_data)
+                    total=len(self._file_data),
+                    desc="Combine Extracted Files: "
                 )
             
             )
@@ -119,8 +155,7 @@ class CombineExtractedFiles():
                 results.append(df)
 
         self.model = pd.concat(results)
-        self.model = self.model.drop(columns=['drop'])
-        #$the above drop is rows that have a problem.  now we need to filter columns
+        #$now we need to filter columns
         #$otherwise the carry forward increases file size quite a bit
         #$by doing here it should not affect anything.
         self.model = self.model[self.needed_columns]
@@ -208,22 +243,35 @@ class CombineExtractedFiles():
         :obj:`pandas.Dataframe`
             The filtered dataframe. Does not modify in place.
         '''
-        # This is 'clean_up_data' in the old deuterater
-        # This is a
-        data = df.dropna(
+        #$get rid of lines that are missing mzs and abundances
+        df = df.dropna(
             axis='index',
             subset=['mzs', 'abundances']
         ).copy()
-        data['drop'] = False
-        for row in data.itertuples():
-            mask = ((data['mz'] - row.mz).abs() <
-                    settings.mz_proximity_tolerance)
-            data.loc[mask, 'drop'] = True
-        data.to_csv("C:\\Data\\test_deuterater_h_output\\final_algorithm_initial_test\\deuterater_.6_results\\test_errors\\check_filters.csv")
-        data = data[~data['drop']]
-
-        # TODO: Check to see if no data went through
-        return data
+        
+        #$ we are going to drop all sequences that are too close in m/z and rt to other sequences
+        #$take out of the dataframe for speed
+        df.sort_values(by='mz', inplace=True)
+        mz_index = list(df.columns).index("mz") 
+        rt_index = list(df.columns).index("rt")
+        seq_index = list(df.columns).index("Sequence")
+        list_of_lists = df.values.tolist()
+        too_close = []
+        for i in range(len(list_of_lists)):
+            for j in range(i+1, len(list_of_lists)):
+                current_ppm = CombineExtractedFiles._ppm_calculator(list_of_lists[i][mz_index], list_of_lists[j][mz_index])
+                if current_ppm > settings.mz_proximity_tolerance: 
+                    break
+                if abs(list_of_lists[i][rt_index] - list_of_lists[j][rt_index]) < settings.rt_proximity_tolerance and \
+                        list_of_lists[i][seq_index] != list_of_lists[j][seq_index]:
+                    too_close.extend([i,j])
+        too_close = list(set(too_close))
+        return df.drop(df.index[too_close])
+    
+    @staticmethod
+    def _ppm_calculator(target, actual):
+        ppm = (target-actual)/target * 1000000
+        return abs(ppm)
     
 
 def main():

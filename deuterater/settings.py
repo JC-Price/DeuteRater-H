@@ -1,3 +1,37 @@
+# -*- coding: utf-8 -*-
+"""
+Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+All rights reserved.
+Redistribution and use in source and binary forms,
+with or without modification, are permitted provided
+that the following conditions are met:
+    * Redistributions of source code must retain the
+      above copyright notice, this list of conditions
+      and the following disclaimer.
+    * Redistributions in binary form must reproduce
+      the above copyright notice, this list of conditions
+      and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the author nor the names of any contributors
+      may be used to endorse or promote products derived
+      from this software without specific prior written
+      permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+
 import yaml
 import traceback
 import os
@@ -34,6 +68,7 @@ id_file_rt_unit: str
 trim_ids_to_mzml_bounds: bool
 chunk_size: int
 chunking_method_threshold: int
+max_valid_angle: float
 time_window: float
 ppm_window: int
 label_key: str
@@ -41,16 +76,17 @@ aa_labeling_sites_path: str
 peak_lookback: int
 peak_lookahead: int
 baseline_lookback: int
+min_envelopes_to_combine: int
 peak_ratio_denominator: int
 zscore_cutoff: int
-mz_proximity_tolerance: float
+mz_proximity_tolerance: int
+rt_proximity_tolerance: float
 min_aa_sequence_length: int
 min_allowed_n_values: int
 starting_enrichment_table_timepoints: int
 error_estimation: str
 min_non_zero_timepoints_rate: int
 min_allowed_timepoints_enrichment: int
-max_rate_check_step_size: float
 minimum_allowed_sequence_rate: float
 maximum_allowed_sequence_rate: float
 minimum_sequences_to_combine_for_protein_rate: int
@@ -61,10 +97,26 @@ median_absolute_residuals_cutoff_single_point: float
 median_absolute_residuals_cutoff_two_points: float
 median_absolute_residuals_cutoff_general: float
 desired_points_for_optimization_graph: int
+intensity_filter: int
+rel_height: float
+sampling_rate: int
+smoothing_width: int
+smoothing_order: int
+allowed_peak_variance_min: float
+allowed_neutromer_peak_variance: float
+adduct_weight: float
+variance_weight: float
+ID_weight: float
+intensity_weight: float
+how_divided: str
+use_chromatography_division: str
+graph_output_format: str
+ms_level: int
+max_enrichment_allowed: float
 
 # TODO: add quick explanation of how this works, inc. 'global' doc link
 def load(settings_path):
-    # NOTE: Look at the python documentation for the 'global' statement if you
+    # NOTE: Look at the python documentation for the 'global' statement if youf
     #       Want to understand how this module works
     try:
         settings_path = Path(settings_path)
@@ -96,6 +148,9 @@ def load(settings_path):
 
         global chunking_method_threshold
         chunking_method_threshold = s['chunking_method_threshold']
+        
+        global max_valid_angle
+        max_valid_angle = s['max_valid_angle']
 
         global time_window
         time_window = s['time_window']
@@ -130,6 +185,9 @@ def load(settings_path):
         global mz_proximity_tolerance
         mz_proximity_tolerance = s["mz_proximity_tolerance"]
         
+        global rt_proximity_tolerance
+        rt_proximity_tolerance = s["rt_proximity_tolerance"]
+        
         global min_aa_sequence_length
         min_aa_sequence_length = s["min_aa_sequence_length"]
         
@@ -147,9 +205,6 @@ def load(settings_path):
         
         global min_allowed_timepoints_enrichment
         min_allowed_timepoints_enrichment = s["min_allowed_timepoints_enrichment"]
-        
-        global max_rate_check_step_size
-        max_rate_check_step_size = s["max_rate_check_step_size"]
         
         global minimum_allowed_sequence_rate
         minimum_allowed_sequence_rate = s["minimum_allowed_sequence_rate"]
@@ -180,6 +235,54 @@ def load(settings_path):
         
         global desired_points_for_optimization_graph
         desired_points_for_optimization_graph = s["desired_points_for_optimization_graph"]
+        
+        global intensity_filter
+        intensity_filter = s["intensity_filter"]
+        
+        global rel_height
+        rel_height = s["rel_height"]
+        
+        global sampling_rate
+        sampling_rate = s["sampling_rate"]
+        
+        global smoothing_width
+        smoothing_width = s["smoothing_width"]
+        
+        global smoothing_order
+        smoothing_order = s["smoothing_order"]
+        
+        global allowed_peak_variance_min
+        allowed_peak_variance_min = s["allowed_peak_variance_min"]
+        
+        global adduct_weight
+        adduct_weight = s["adduct_weight"]
+        
+        global variance_weight
+        variance_weight = s["variance_weight"]
+        
+        global ID_weight
+        ID_weight = s["ID_weight"]
+        
+        global intensity_weight
+        intensity_weight = s["intensity_weight"]
+        
+        global how_divided
+        how_divided = s["how_divided"]
+        
+        global allowed_neutromer_peak_variance
+        allowed_neutromer_peak_variance = s["allowed_neutromer_peak_variance"]
+        
+        global ms_level
+        ms_level = s["ms_level"]
+        
+        global use_chromatography_division
+        use_chromatography_division = s["use_chromatography_division"]
+        
+        global graph_output_format
+        graph_output_format = s["graph_output_format"]
+        
+        global max_enrichment_allowed
+        max_enrichment_allowed = s["max_enrichment_allowed"]
 
     except Exception as e:
         print(e)
@@ -196,6 +299,7 @@ def freeze(path=None, settings_dict = None):
             'trim_ids_to_mzml_bounds': trim_ids_to_mzml_bounds,
             'chunk_size': chunk_size,
             'chunking_method_threshold': chunking_method_threshold,
+            'max_valid_angle': max_valid_angle,
             'time_window': time_window,
             'ppm_window': ppm_window,
             "label_key": label_key,
@@ -206,14 +310,15 @@ def freeze(path=None, settings_dict = None):
             'min_envelopes_to_combine': min_envelopes_to_combine,
             'peak_ratio_denominator': peak_ratio_denominator,
             'zscore_cutoff': zscore_cutoff,
+            "max_enrichment_allowed": max_enrichment_allowed,
             "min_aa_sequence_length": min_aa_sequence_length,
             "mz_proximity_tolerance":mz_proximity_tolerance,
+            "rt_proximity_tolerance":rt_proximity_tolerance,
             "min_allowed_n_values": min_allowed_n_values,
             "starting_enrichment_table_timepoints": starting_enrichment_table_timepoints,
             "error_estimation": error_estimation,
             "min_non_zero_timepoints_rate": min_non_zero_timepoints_rate,
             "min_allowed_timepoints_enrichment": min_allowed_timepoints_enrichment,
-            "max_rate_check_step_size": max_rate_check_step_size,
             "minimum_allowed_sequence_rate": minimum_allowed_sequence_rate,
             "maximum_allowed_sequence_rate": maximum_allowed_sequence_rate,
             "minimum_sequences_to_combine_for_protein_rate": minimum_sequences_to_combine_for_protein_rate,
@@ -223,7 +328,22 @@ def freeze(path=None, settings_dict = None):
             "median_absolute_residuals_cutoff_single_point": median_absolute_residuals_cutoff_single_point,
             "median_absolute_residuals_cutoff_two_points": median_absolute_residuals_cutoff_two_points,
             "median_absolute_residuals_cutoff_general": median_absolute_residuals_cutoff_general,
-            "desired_points_for_optimization_graph": desired_points_for_optimization_graph
+            "desired_points_for_optimization_graph": desired_points_for_optimization_graph,
+            "intensity_filter": intensity_filter,
+            "rel_height": rel_height,
+            "sampling_rate": sampling_rate,
+            "smoothing_width": smoothing_width,
+            "smoothing_order": smoothing_order,
+            "allowed_peak_variance_min": allowed_peak_variance_min,
+            "adduct_weight": adduct_weight,
+            "variance_weight": variance_weight,
+            "ID_weight": ID_weight,
+            "intensity_weight": intensity_weight,
+            "how_divided": how_divided,
+            "allowed_neutromer_peak_variance": allowed_neutromer_peak_variance,
+            "ms_level": ms_level,
+            "use_chromatography_division": use_chromatography_division,
+            "graph_output_format": graph_output_format
             
         }
     if path:
