@@ -73,8 +73,10 @@ sequence_rate_calculation = deuterater_step("rate_by_sequence.csv", ["Protein ID
 protiein_rate_combination = deuterater_step("Final_Protein_Rates.csv", [
     "Subject ID", "Protein ID", "Protein Name", "Sequence", "Abundance rate", 
     "Unique Timepoints", "Number of Measurements", "Approximate Variance",
-    "mean of all absolute value errors", "num times",
-    "n_isos", "num measurements", "time values"
+    "mean of all absolute residuals", "num times",
+    "n_isos", "num measurements", "time values",
+    "dropped points", "M0 constantly decreasing",
+    "Error column"
 ])
 
 step_object_dict = {
@@ -268,17 +270,27 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         self.file_loc = output_folder
         self.make_folder(output_folder, non_graph = True)
         
-        #$then need to check if the files exist. if so warn the user. function
+        #$this checks settings only.  will just leave out for now
+        #if self.check_file_removal([os.path.join(output_folder, "rate_settings.yaml")]):
+        #    settings.freeze(os.path.join(output_folder, "rate_settings.yaml"))
+        #else:
+        #    return
+        
+        #$then need to check if the files exist. if so warn the user. 
+        #$extract should be analyzed after the user chooses the mzmls. also we're leaving graphs out of this
         no_extract_list = [w for w in worklist if w !="Extract"]
-        outputs_to_check = []
+        outputs_to_check = [os.path.join(output_folder, "rate_settings.yaml")]
         for worklist_step in no_extract_list:
             step_object_dict[worklist_step].complete_filename(self.file_loc)
             outputs_to_check.append(step_object_dict[worklist_step].full_filename)
         #$if should only fail if an extract only, but that may occur
-        if outputs_to_check != []:
-            proceed = self.check_file_removal(outputs_to_check)
-            if not proceed: 
-                return
+        #if outputs_to_check != []:
+        proceed = self.check_file_removal(outputs_to_check)
+        if not proceed: 
+            return
+        else:
+            #$now we have permission to overwrite rate_settings if present we can proceed to save them
+            settings.freeze(os.path.join(output_folder, "rate_settings.yaml"))
         
         #$now we need to get input and do the work. each step can only occur 
         #$once and they occur in order. so we will write them in order
@@ -322,7 +334,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                         self.get_data_table2 = EnrichmentWindow(self, 
                                 settings.min_allowed_timepoints_enrichment, 
                                 settings.starting_enrichment_table_timepoints,
-                                previous_output_file)
+                                previous_output_file, settings.max_enrichment_allowed)
                         self.get_data_table2.exec_()
                     else: return
                     if os.path.isfile(previous_output_file):
@@ -330,8 +342,12 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                         enrichment_graph_folder = os.path.join(enrichment_graph_folder,
                                                                "Enrichment_Graphs")
                         self.make_folder(enrichment_graph_folder)
-                        enrichment_class = PerformEnrichmentClass(previous_output_file, enrichment_graph_folder)
+                        enrichment_class = PerformEnrichmentClass(previous_output_file, enrichment_graph_folder, settings.graph_output_folder)
                         enrichment_class.perform_calculations()
+                        spline_error = enrichment_class.report_error()
+                        if spline_error != "":
+                            QtWidgets.QMessageBox.information(self, "Error", spline_error)
+                            return 
                     else: return
                     
                     #$don't make the table twice
@@ -381,7 +397,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     self.get_data_table2 = EnrichmentWindow(self, 
                             settings.min_allowed_timepoints_enrichment, 
                             settings.starting_enrichment_table_timepoints,
-                            previous_output_file)
+                            previous_output_file, settings.max_enrichment_allowed)
                     self.get_data_table2.exec_()
                 else: return
                 if os.path.isfile(previous_output_file):
@@ -389,8 +405,13 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                         enrichment_graph_folder = os.path.join(enrichment_graph_folder,
                                                                "Enrichment_Graphs")
                         self.make_folder(enrichment_graph_folder)
-                        enrichment_class = PerformEnrichmentClass(previous_output_file, enrichment_graph_folder)
+                        enrichment_class = PerformEnrichmentClass(previous_output_file, enrichment_graph_folder, settings.graph_output_format)
                         enrichment_class.perform_calculations()
+                        spline_error = enrichment_class.report_error()
+                        if spline_error != "":
+                            QtWidgets.QMessageBox.information(self, "Error", spline_error)
+                            return 
+                            
                 else: return
                 
             elif analysis_step == "Combine Extracted Files":
@@ -548,6 +569,40 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         else:
             return False
 
+    def large_text_question_for_use(self, title, infoText, detailedText):
+        question = QtWidgets.QMessageBox(self)
+        question.setWindowTitle("Question")
+        question.setText(title)
+        question.setIcon(QtWidgets.QMessageBox.Question)
+        
+        question.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        question.setDefaultButton(QtWidgets.QMessageBox.No)
+        
+        question.setDetailedText(detailedText)
+        question.setInformativeText(infoText)
+        
+        question.setStyleSheet("QMessageBox{min-width:650 px;}")
+        response = question.exec_()
+        
+        if response == QtWidgets.QMessageBox.Yes:
+            return True
+        else:
+            return False
+    
+    def large_text_information(self, title, text, detailedText):
+        info = QtWidgets.QMessageBox(self)
+        info.setWindowTitle(title)
+        info.setText(text)
+        info.setIcon(QtWidgets.QMessageBox.Information)
+        
+        info.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        info.setDefaultButton(QtWidgets.QMessageBox.Ok)
+        
+        info.setDetailedText(detailedText)
+        
+        info.setStyleSheet("QMessageBox{min-width:650 px;}")
+        info.exec_()
+
     def collect_single_file(self, to_load, step_name, load_type):
         QtWidgets.QMessageBox.information(self, "Info", ("Please choose the {} "
                 "file to load for {} step".format(to_load, step_name)))
@@ -578,28 +633,31 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         for filename in list_of_filenames:
             if os.path.exists(filename):
                 files_to_remove.append(filename)
-        #$let the user decide if we should continue.
+        # $let the user decide if we should continue.
         if files_to_remove != []:
-            filenames_to_remove = [os.path.basename(filepath) for filepath in files_to_remove]
-            proceed = self.question_for_user(("The following files will be "
-                "overwritten:\n{}\nDo you still wish to proceed?".format(
-                 ",\n".join(filenames_to_remove))))
+            proceed = self.large_text_question_for_use("Some files already exist and will be overwritten.",
+                                                       "Do you still wish to proceed?",
+                                                       "Files to be overwritten:\n" + ",\n".join(files_to_remove))
             if not proceed:
-                 return False
-            for filename in files_to_remove:
-                 try:
-                     os.remove(filename)
-                 except PermissionError:
-                     open_files.append(filename)
-            if open_files != []:
-                QtWidgets.QMessageBox.information(self, "Error", 
-                    ("The following files cannot be overwritten:\n{}\n"
-                     "They are likely open in another program. please close "
-                     "and try again.".format(",\n".join(open_files)))
-                    )
                 return False
-        #$will return true if no files already exist or the user wants to
-        #$overwrite and they can be removed so we have permission
+            for filename in files_to_remove:
+                try:
+                    os.remove(filename)
+                except PermissionError:
+                    open_files.append(filename)
+            if open_files != []:
+                self.large_text_information("Error", "Some files cannot be overwritten.\n\n "
+                                                     "They are likely open in another program. Please close "
+                                                     "and try again.",
+                                            "Files unable to be opened:\n" + ",\n".join(open_files))
+                # QtWidgets.QMessageBox.information(self, "Error",
+                # 								  ("The following files cannot be overwritten:\n{}\n"
+                # 								   "They are likely open in another program. please close "
+                # 								   "and try again.".format(",\n".join(open_files)))
+                # 								  )
+                return False
+        # $will return true if no files already exist or the user wants to
+        # $overwrite and they can be removed so we have permission
         return True
         
     def check_input (self, relevant_object, filename):
