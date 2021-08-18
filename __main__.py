@@ -13,13 +13,14 @@ readability and consistency, as well as easy to use in the command line
 
 #$we will of course need to expand things later, but we'll sort that out later
 import os
+import sys
 import multiprocessing as mp
 import csv
 import pandas as pd
-from shutil import rmtree
+from tqdm import tqdm
 
 from PyQt5 import uic, QtWidgets, QtCore, QtGui
-from shutil import copyfile
+from shutil import copyfile, rmtree
 
 from deuteconvert.peaks85 import Peaks85
 from deuteconvert.peaksXplus import PeaksXplus
@@ -32,6 +33,7 @@ from deuterater.combine_extracted_files import CombineExtractedFiles
 from deuterater.initial_intensity_calculator import theoretical_enrichment_calculator
 from deuterater.rate_calculator import RateCalculator
 from deuterater.protein_rate_combiner import Peptides_to_Proteins
+from utils.chromatography_division import ChromatographyDivider
 from utils.useful_classes import deuterater_step, deuteconvert_peaks_required_headers
 import deuterater.settings as settings
 from gui_software.Rate_Settings import Rate_Setting_Menu
@@ -143,7 +145,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         self.guide_file_options.setCurrentIndex(index)
         
         self.GuideFileButton.clicked.connect(self.create_guide_file)
-        self.RateCalculationButton.clicked.connect(self.run_rate_workflow)
+        self.RateCalculationButton.clicked.connect(self._calc_rates)
         self.actionSettings.triggered.connect(self.change_settings)
         
         #$make the logo show up
@@ -241,6 +243,13 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         self.file_loc = os.path.dirname(save_file)
         QtWidgets.QMessageBox.information(self, "Success", 
                 "Guide file successfully saved")
+    def _calc_rates(self):
+        try:
+            
+            self.RateCalculationButton.setText("Currently Processing... Please Wait.")
+            self.run_rate_workflow()
+        finally:
+            self.RateCalculationButton.setText("Rate Calculation")
         
     def run_rate_workflow(self):
         #$will need some settings
@@ -268,7 +277,6 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         #$change location we start asking for things at
         #$don't change since all output is going in here
         self.file_loc = output_folder
-        self.make_folder(output_folder, non_graph = True)
         
         #$this checks settings only.  will just leave out for now
         #if self.check_file_removal([os.path.join(output_folder, "rate_settings.yaml")]):
@@ -318,8 +326,13 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                                         filename in mzml_filenames]
                 extracted_files = [os.path.join(output_folder, filename) for
                                    filename in extracted_files]
-                
-                proceed = self.check_file_removal(extracted_files)
+                if settings.use_chromatography_division != "No":
+                    extracted_intermediate_files = [filename.replace(".tsv", "_no_division.tsv") for
+                                                    filename in extracted_files]
+                else:
+                    extracted_intermediate_files = extracted_files
+                needed_files = list(set(extracted_files + extracted_intermediate_files))
+                proceed = self.check_file_removal(needed_files)
                 if not proceed:  return
                 #$need to run the table if necessary. taken from the 
                 #$"Provide Time and Enrichment" elif
@@ -342,7 +355,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                         enrichment_graph_folder = os.path.join(enrichment_graph_folder,
                                                                "Enrichment_Graphs")
                         self.make_folder(enrichment_graph_folder)
-                        enrichment_class = PerformEnrichmentClass(previous_output_file, enrichment_graph_folder, settings.graph_output_folder)
+                        enrichment_class = PerformEnrichmentClass(previous_output_file, enrichment_graph_folder, settings.graph_output_format)
                         enrichment_class.perform_calculations()
                         spline_error = enrichment_class.report_error()
                         if spline_error != "":
@@ -357,16 +370,24 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     #$elif analysis_step == "Theory Generation" )
                     if not os.path.exists(previous_output_file): return
                 #$ modified from the extract-dir argument from the command line
-                for m in range(len(mzml_files)):
+                for m in tqdm(range(len(mzml_files)), total=len(mzml_files), desc="Extracting mzml files: "):
                     extractor = Extractor(
-                        id_path = os.path.join(self.file_loc, id_file),
-                        mzml_path = mzml_files[m],
-                        out_path = extracted_files[m],
-                        settings_path = rate_settings_file
-                        )
+                        id_path=os.path.join(self.file_loc, id_file),
+                        mzml_path=mzml_files[m],
+                        out_path=extracted_intermediate_files[m],
+                        settings_path=rate_settings_file,
+                    )
                     extractor.load()
                     extractor.run()
                     extractor.write()
+                    del extractor
+                if settings.use_chromatography_division != "No":
+                    divider = ChromatographyDivider(settings_path=rate_settings_file,
+                                                    input_paths=extracted_intermediate_files,
+                                                    out_paths=extracted_files,
+                                                    )
+                    divider.divide()
+                    del divider
             elif analysis_step == "Provide Time and Enrichment" and make_table_in_order:
                 #$if coming right after a list
                 if extracted_files == []:
@@ -445,6 +466,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 )
                 combiner.prepare()
                 combiner.write()
+                del combiner
                 previous_output_file = step_object_dict[analysis_step].full_filename
                 
             elif analysis_step == "Calculate Delta by Enrichment":
@@ -471,6 +493,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     )
                 enrich_delta.prepare()
                 enrich_delta.write()
+                del enrich_delta
                 previous_output_file = step_object_dict[analysis_step].full_filename
                 
             elif analysis_step == "Rate Calculation":
@@ -508,6 +531,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 )
                 ratecalc.calculate()
                 ratecalc.write()
+                del ratecalc
                 previous_output_file = step_object_dict[analysis_step].full_filename
             elif analysis_step == "Combine Sequence Rates":
                 if previous_output_file == "":
@@ -534,6 +558,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     )
                 combine_rate_calc.calculate()
                 combine_rate_calc.write()
+                del combine_rate_calc
                 
         QtWidgets.QMessageBox.information(self, "Success", 
                 "Analysis completed successfully")
