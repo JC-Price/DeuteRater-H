@@ -99,8 +99,8 @@ class Peptides_to_Proteins(object):
         )
         
     def make_final_header(self):
-        self.final_header = ["Subject ID", "Protein ID",  "Num Sequences Used",
-                             "Average Rate", "Rate Std Dev", 
+        self.final_header = ["Subject ID", "Protein ID", "Protein Name", "Num Sequences Used",
+                             f"{settings.protein_combination_method} Rate", "Rate Std Dev", 
                              "Num Peptides Above Max. Allowed Rate", 
                              "Num Peptides Below Min. Allowed Rate"]
         for text_error in text_errors:
@@ -121,12 +121,14 @@ class Peptides_to_Proteins(object):
                           minimum_required_rates = settings.minimum_sequences_to_combine_for_protein_rate,
                           text_errors = text_errors,
                           graph_folder = self.graph_folder,
-                          graph_type = settings.graph_output_format)
+                          graph_type = settings.graph_output_format,
+                          roll_up_type = settings.protein_combination_method)
                           
         results_list = list(tqdm(mp_pools.map(mp_func,[group_tuple for group_tuple in groupby_object]), 
                                  total = len(groupby_object), desc = "Protein Roll Up: "))
         mp_pools.close()
         mp_pools.join()
+        
         """
         #$no multiprocessing for troubleshooting
         results_list = []
@@ -139,15 +141,25 @@ class Peptides_to_Proteins(object):
         for g in groupby_object:
             results_list.append(mp_func(g))
         """
-        self.final_rates_model = pd.DataFrame(results_list, columns = self.final_header)           
+        self.final_rates_model = pd.DataFrame(results_list, columns = self.final_header)   
+
+        #$simplify at the end.  makes troubleshooting and adjustment easier
+        #$and should not drastically increase the time taken
+        if not settings.verbose_output:
+            self.trim_verbose_data()        
         
-        
+       
+    def trim_verbose_data(self):
+        needed_columns = ["Subject ID", "Protein ID", "Num Sequences Used", f"{settings.protein_combination_method} Rate", "Rate Std Dev"]
+        self.final_rates_model = self.final_rates_model[needed_columns] 
+       
     @staticmethod
     def _mp_grouping_function(groupby_element, minimum_rate, max_rate,
                               minimum_required_rates, text_errors, graph_folder,
-                              graph_type):
+                              graph_type, roll_up_type):
         id_tuple, id_dataframe = groupby_element
         return_dict = {"Subject ID": id_tuple[0], "Protein ID": id_tuple[1]}
+        return_dict["Protein Name"] = list(id_dataframe["Protein Name"])[0]
         
         
         #$we're going to apply the filters one at a time so we can collect numbers
@@ -165,7 +177,7 @@ class Peptides_to_Proteins(object):
             return_dict["Num Peptides Above Max. Allowed Rate"] = 0
             return_dict["Num Peptides Below Min. Allowed Rate"] = 0
             return_dict["Num Sequences Used"] = 0
-            return_dict["Average Rate"] = "No Rates were calculated for this ID"
+            return_dict[f"{roll_up_type} Rate"] = "No Rates were calculated for this ID"
             return_dict["Rate Std Dev"] = "No Rates were calculated for this ID"
             return pd.Series(return_dict)
         
@@ -187,13 +199,16 @@ class Peptides_to_Proteins(object):
         return_dict["Num Peptides Below Min. Allowed Rate"] = num_not_too_big_values - num_values_in_allowed_range
         return_dict["Num Sequences Used"] = num_values_in_allowed_range
         if num_values_in_allowed_range == 0:
-            return_dict["Average Rate"] = "No Good Rates were calculated for this ID"
+            return_dict[f"{roll_up_type} Rate"] = "No Good Rates were calculated for this ID"
             return_dict["Rate Std Dev"] = "No Good Rates were calculated for this ID"
         elif num_values_in_allowed_range < minimum_required_rates:
-            return_dict["Average Rate"] = "insufficient rates to average"
-            return_dict["Rate Std Dev"] = "insufficient rates to average"
+            return_dict[f"{roll_up_type} Rate"] = "insufficient rates to combine"
+            return_dict["Rate Std Dev"] = "insufficient rates to combine"
         else:
-            return_dict["Average Rate"] = np.mean(id_dataframe[rate_column])
+            if roll_up_type == "Average":
+                return_dict[f"{roll_up_type} Rate"] = np.mean(id_dataframe[rate_column])
+            elif roll_up_type == "Median":
+                return_dict[f"{roll_up_type} Rate"] = np.median(id_dataframe[rate_column])
             return_dict["Rate Std Dev"] = np.std(id_dataframe[rate_column])
         
             protein_graph_title = f"{id_tuple[0]}_{id_tuple[1]}"

@@ -99,6 +99,7 @@ median_absolute_residuals_cutoff_general: float
 desired_points_for_optimization_graph: int
 intensity_filter: int
 rel_height: float
+protein_combination_method: str
 sampling_rate: int
 smoothing_width: int
 smoothing_order: int
@@ -113,6 +114,7 @@ use_chromatography_division: str
 graph_output_format: str
 ms_level: int
 max_enrichment_allowed: float
+verbose_output: bool
 
 # TODO: add quick explanation of how this works, inc. 'global' doc link
 def load(settings_path):
@@ -245,6 +247,9 @@ def load(settings_path):
         global sampling_rate
         sampling_rate = s["sampling_rate"]
         
+        global protein_combination_method
+        protein_combination_method = s["protein_combination_method"]
+        
         global smoothing_width
         smoothing_width = s["smoothing_width"]
         
@@ -283,11 +288,31 @@ def load(settings_path):
         
         global max_enrichment_allowed
         max_enrichment_allowed = s["max_enrichment_allowed"]
+        
+        global verbose_output
+        verbose_output = s["verbose_output"]
 
     except Exception as e:
         print(e)
         traceback.print_tb(e.__traceback__)
 
+
+def compare(settings_path, compare_path):
+    try:
+        settings_path = Path(settings_path)
+        with settings_path.open('r') as f:
+            setting = yaml.load(f, Loader=yaml.FullLoader)
+        compare_path = Path(compare_path)
+        with compare_path.open('r') as f:
+            compare = yaml.load(f, Loader=yaml.FullLoader)
+        if setting.keys() != compare.keys():
+            return "Different Keys"
+        for key in setting.keys():
+            if setting[key] != compare[key]:
+                return "Mismatched Keys"
+        return "MATCH"
+    except:
+        return "Error"
 
 def freeze(path=None, settings_dict = None):
     if not settings_dict:
@@ -332,6 +357,7 @@ def freeze(path=None, settings_dict = None):
             "intensity_filter": intensity_filter,
             "rel_height": rel_height,
             "sampling_rate": sampling_rate,
+            "protein_combination_method": protein_combination_method,
             "smoothing_width": smoothing_width,
             "smoothing_order": smoothing_order,
             "allowed_peak_variance_min": allowed_peak_variance_min,
@@ -343,7 +369,8 @@ def freeze(path=None, settings_dict = None):
             "allowed_neutromer_peak_variance": allowed_neutromer_peak_variance,
             "ms_level": ms_level,
             "use_chromatography_division": use_chromatography_division,
-            "graph_output_format": graph_output_format
+            "graph_output_format": graph_output_format,
+            "verbose_output": verbose_output
             
         }
     if path:
