@@ -1,15 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Sep 21 08:57:55 2020
-
-Need to recode and activate the GUI
-will attempt to not apply do any code unrelated to the gui or saving data
-all calculations (aside from assuring that values are within allowed ranges or
-ensuring that an output file is writable)will be done in the imports for 
-readability and consistency, as well as easy to use in the command line
-
-@author: JCPrice
+Copyright (c) 2021 Bradley Naylor, Christian Andersen, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+All rights reserved.
+Redistribution and use in source and binary forms,
+with or without modification, are permitted provided
+that the following conditions are met:
+    * Redistributions of source code must retain the
+      above copyright notice, this list of conditions
+      and the following disclaimer.
+    * Redistributions in binary form must reproduce
+      the above copyright notice, this list of conditions
+      and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the author nor the names of any contributors
+      may be used to endorse or promote products derived
+      from this software without specific prior written
+      permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
+
 
 #$we will of course need to expand things later, but we'll sort that out later
 import os
@@ -151,9 +172,10 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         #$make the logo show up
         #$use of command from http://stackoverflow.com/questions/8687723/pyqthow-do-i-display-a-image-properly 
         #$first answer accesed 5/27/2016
-        myPixmap = QtGui.QPixmap(os.path.join(location, "resources", "Logo.JPG")) 
+        myPixmap = QtGui.QPixmap(os.path.join(location, "resources", "Logo.PNG")) 
         self.Logo.setPixmap(myPixmap)
         self.Logo.setScaledContents(True)
+        self.setWindowTitle("DeuteRater")
     
     
     def Peaks_File_Collection(self, header_checker_object):
@@ -278,16 +300,49 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         #$don't change since all output is going in here
         self.file_loc = output_folder
         
-        #$this checks settings only.  will just leave out for now
-        #if self.check_file_removal([os.path.join(output_folder, "rate_settings.yaml")]):
-        #    settings.freeze(os.path.join(output_folder, "rate_settings.yaml"))
-        #else:
-        #    return
+        #don't care if overwrite rate_settings.yaml but should check if want to use the settings already in the folder
+        if os.path.exists(os.path.join(output_folder, "rate_settings.yaml")):
+            comp_result = settings.compare(rate_settings_file, os.path.join(output_folder, "rate_settings.yaml"))
+            if comp_result != "MATCH":
+                if comp_result == "Mismatched Keys":
+                    qBox = QtWidgets.QMessageBox(self)
+                    qBox.setWindowTitle("Question")
+                    question = "A settings file already exists in this output folder. Would you like to use those settings,or overwrite them?"
+                    qBox.setText(question)
+                    qBox.setIcon(QtWidgets.QMessageBox.Question)
+                    qBox.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel)
+
+                    yButton = qBox.button(QtWidgets.QMessageBox.Yes)
+                    yButton.setText("Use Settings")
+                    nButton = qBox.button(QtWidgets.QMessageBox.No)
+                    nButton.setText("Overwrite")
+                    response = qBox.exec_()
+                    if response == QtWidgets.QMessageBox.Yes:
+                        settings.load(os.path.join(output_folder, "rate_settings.yaml"))
+                        settings.freeze(rate_settings_file)
+                    elif response == QtWidgets.QMessageBox.No:
+                        if self.check_file_removal([os.path.join(output_folder, "rate_settings.yaml")], ask_permission = False):
+                            settings.freeze(os.path.join(output_folder, "rate_settings.yaml"))
+                        else:
+                            return
+                    else:
+                        return
+                else:
+                    #$no point asking if we can delete the file if it is the same anyway.  still want to overwrite as part of checking permissions.
+                    #$may not overwrite later
+                    if self.check_file_removal([os.path.join(output_folder, "rate_settings.yaml")], ask_permission = False):
+                        settings.freeze(os.path.join(output_folder, "rate_settings.yaml"))
+                    else:
+                        return
+        else:
+            settings.freeze(os.path.join(output_folder, "rate_settings.yaml"))
+        
+        
         
         #$then need to check if the files exist. if so warn the user. 
         #$extract should be analyzed after the user chooses the mzmls. also we're leaving graphs out of this
         no_extract_list = [w for w in worklist if w !="Extract"]
-        outputs_to_check = [os.path.join(output_folder, "rate_settings.yaml")]
+        outputs_to_check = []
         for worklist_step in no_extract_list:
             step_object_dict[worklist_step].complete_filename(self.file_loc)
             outputs_to_check.append(step_object_dict[worklist_step].full_filename)
@@ -296,9 +351,6 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         proceed = self.check_file_removal(outputs_to_check)
         if not proceed: 
             return
-        else:
-            #$now we have permission to overwrite rate_settings if present we can proceed to save them
-            settings.freeze(os.path.join(output_folder, "rate_settings.yaml"))
         
         #$now we need to get input and do the work. each step can only occur 
         #$once and they occur in order. so we will write them in order
@@ -332,6 +384,8 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 else:
                     extracted_intermediate_files = extracted_files
                 needed_files = list(set(extracted_files + extracted_intermediate_files))
+                #$won't know what files to check until this point so need to check again here
+                #$and ask permission of course
                 proceed = self.check_file_removal(needed_files)
                 if not proceed:  return
                 #$need to run the table if necessary. taken from the 
@@ -651,7 +705,11 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
     #$ we have some cases where we need to remove files that we will create 
     #$later (and so would be overwritten anyway). we'll just do error messages
     #$ and so on here.  
-    def check_file_removal(self, list_of_filenames):
+    #$ask_permission is for cases where permission is needed.  there are cases,
+    #$ for example the settings file where the file is identical to what is already there 
+    #$or we've already asked permission, where we need to check that we have the ability
+    #$to overwrite the files but don't need to ask
+    def check_file_removal(self, list_of_filenames, ask_permission = True):
         files_to_remove = []
         open_files = []
         #$find files that exist
@@ -660,11 +718,12 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 files_to_remove.append(filename)
         # $let the user decide if we should continue.
         if files_to_remove != []:
-            proceed = self.large_text_question_for_use("Some files already exist and will be overwritten.",
-                                                       "Do you still wish to proceed?",
-                                                       "Files to be overwritten:\n" + ",\n".join(files_to_remove))
-            if not proceed:
-                return False
+            if ask_permission:
+                proceed = self.large_text_question_for_use("Some files already exist and will be overwritten.",
+                                                           "Do you still wish to proceed?",
+                                                           "Files to be overwritten:\n" + ",\n".join(files_to_remove))
+                if not proceed:
+                    return False
             for filename in files_to_remove:
                 try:
                     os.remove(filename)
@@ -746,6 +805,9 @@ if __name__ == '__main__':
     import sys
     mp.freeze_support()
     app = QtWidgets.QApplication(sys.argv)
+    app.setApplicationDisplayName("DeuteRater")
+    app.setApplicationName("DeuteRater")
+    app.setWindowIcon(QtGui.QIcon(os.path.join(location, "resources", "Logo_64_clean.PNG")))
     gui_object = MainGuiObject(None)
     gui_object.show()
     app.exec_()
