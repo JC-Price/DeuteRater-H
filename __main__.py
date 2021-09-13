@@ -139,7 +139,7 @@ convert_needed_headers = {
         )
     }
 
-default_converter = "Peaks XPro"
+default_converter = "Template"
 #TODO$ may need to adjust the header or shove in the n-value calculator
 converter_header = PeaksXplus.correct_header_order
 
