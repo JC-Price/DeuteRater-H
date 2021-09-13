@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+Copyright (c) 2016-2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
 All rights reserved.
 Redistribution and use in source and binary forms,
 with or without modification, are permitted provided
@@ -32,7 +32,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 import numpy as np
 import warnings
-import deuterater.settings as settings
+try:
+    import deuterater.settings as settings
+except:
+    import DeuteRater.deuterater.settings as settings
 from .id import ID
 
 class Molecule(object):
@@ -443,6 +446,8 @@ class Molecule(object):
                 df.at[row_index, 'rt_max'] = id.rt_max
                 df.at[row_index, "Extraction_Updated"] = self.why_chosen
                 df.at[row_index, 'baseline_signal'] = id.condensed_envelope.baseline
+                # df.at[row_index, 'signal_noise'] = ""
+                df.at[row_index, 'signal_noise'] = str(id.signal_noise)
                 df.at[row_index, 'lookback_mzs'] = lb_mzs
                 df.at[row_index, 'lookback_abundances'] = lb_abundances
                 df.at[row_index, 'lookahead_mzs'] = la_mzs
@@ -459,6 +464,7 @@ class Molecule(object):
                 df.at[row_index, 'rt_min'] = np.nan
                 df.at[row_index, 'rt_max'] = np.nan
                 df.at[row_index, 'baseline_signal'] = np.nan
+                df.at[row_index, 'signal_noise'] = np.nan
                 df.at[row_index, 'lookback_mzs'] = np.nan
                 df.at[row_index, 'lookback_abundances'] = np.nan
                 df.at[row_index, 'lookahead_mzs'] = np.nan

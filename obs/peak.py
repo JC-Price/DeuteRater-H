@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+Copyright (c) 2016-2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
 All rights reserved.
 Redistribution and use in source and binary forms,
 with or without modification, are permitted provided
@@ -79,3 +79,8 @@ class Peak(object):
         return 'Peak(mz={:10.2f}, ab={:10.2f}, i={:3d})'.format(
             self.mz, self.ab, self.i
         )
+    
+    def __deepcopy__(self, memodict={}):
+        copy_object = Peak(self.mz, self.ab, self.i)
+        return copy_object
+        

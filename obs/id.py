@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+Copyright (c) 2016-2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
 All rights reserved.
 Redistribution and use in source and binary forms,
 with or without modification, are permitted provided
@@ -31,11 +31,16 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-
-from obs.envelope import Envelope  # noqa: 401
-from obs.peak import Peak
-from utils.math import angle_between  # noqa: 401
-import deuterater.settings as settings
+try:
+    from obs.envelope import Envelope  # noqa: 401
+    from obs.peak import Peak
+    from utils.math import angle_between  # noqa: 401
+    import deuterater.settings as settings
+except:
+    from DeuteRater.obs.envelope import Envelope  # noqa: 401
+    from DeuteRater.obs.peak import Peak
+    from DeuteRater.utils.math import angle_between  # noqa: 401
+    import DeuteRater.deuterater.settings as settings
 
 from numpy import mean, median, std, argsort
 
@@ -89,7 +94,8 @@ class ID(object):
         "rt_windows",
         "rt_peak_index",
         "neutromer_peak_maximums",
-        "is_valid"
+        "is_valid",
+        "signal_noise"
     )
 
     def __init__(self, rt, mz, mass, z, n_isos):#, cf):
@@ -111,6 +117,7 @@ class ID(object):
         self.rt_windows = []
         self.neutromer_peak_maximums = []
         self.rt_peak_index = []
+        self.signal_noise = []
 
     # Defining the __repr__ function allows python to call repr()
     # on this object. This is usually much less formatted than the related
@@ -138,21 +145,26 @@ class ID(object):
         self._envelopes.append(envelope)
 
     def aggregate_envelopes(self):
-       # TODO: add docstring
+        # TODO: add docstring
 
         from copy import deepcopy
-        if settings.use_chromatography_division != "No":
-            self._unfiltered_envelopes = deepcopy(self._envelopes)
-
-        self._envelopes = [self._envelopes[i] for i in range(len(self._envelopes)) if self._envelopes[i].is_valid]
+        
+        valid_envelopes = [envelope for envelope in self._envelopes if envelope.is_valid]
 
         # First, we see if there are even enough envelopes to warrant analyzing
         #   this identification
-        if len(self._envelopes) < settings.min_envelopes_to_combine:
+        if len(valid_envelopes) < settings.min_envelopes_to_combine:
             # TODO: not enough data. What should be logged?
             self._unfiltered_envelopes = None
             return
-
+        
+        # [e.baseline for e in self._envelopes]  # Calculate the baseline for any used scans.
+        
+        if settings.use_chromatography_division != "No":
+            self._unfiltered_envelopes = deepcopy(self._envelopes)
+        
+        self._envelopes = valid_envelopes
+        
         def get_max_M0_vector(current_id):
             vector_list = [[peak.ab for peak in envelope.get_peaks()]
                            for envelope
@@ -277,15 +289,38 @@ class ID(object):
 
         # NOTE: we would perform any normaliztions here. We decided not to.
 
-        # TODO: make this happen in only one pass
         rt_list = self._get_rt_list()
         self.rt_min = min(rt_list)
         self.rt_max = max(rt_list)
+        
+        # Calculate Signal Noise:
+        from scipy.signal import savgol_filter
 
+        smoothing_width = settings.smoothing_width
+        smoothing_order = settings.smoothing_order
+
+        from numpy import array, sqrt, std
+
+        def mad(values):
+            m = median(values)
+            return median([abs(a - m) for a in values])
+        
+        temp = smoothing_width
+        for a in self._get_peak_list():
+            if len(a) < smoothing_width:
+                smoothing_width = (int((len(a) - 1)/2) * 2) + 1
+            smoothed_curves = savgol_filter(a, smoothing_width, smoothing_order)
+            smoothing_width = temp
+            smoothed_curves[smoothed_curves < 0] = 0
+            diff = [b for b in array(a) - smoothed_curves]
+            # abs_diff = [abs(b) for b in diff]
+            normal_distribution_scale_factor = 1.4826
+            self.signal_noise.append(mad(diff) * normal_distribution_scale_factor * 3)
+        
         # After performing all of this filtration, aggregate all of the data
         #   in the remaining envelopes in to a 'condensed envelope'
         self.condense_envelopes()
-        
+
     def _get_rt_list(self, rounded=False):
         if rounded:
             return [round(float(envelope.rt), 4) for envelope in self._envelopes]
@@ -306,7 +341,7 @@ class ID(object):
                     peaks_list[i].append(envelope.get_m(i).ab)
         
         return peaks_list
-
+    
     def condense_envelopes(self):
         # TODO: add docstring
         def condense_peak(peak_num):
@@ -350,7 +385,7 @@ class ID(object):
             # TODO should we keep all the mads instead?
             peak, _ = condense_peak(peak_num)
             peak_list.append(peak)
-        rt_median = median([envelope.rt for envelope in self._envelopes])
+        rt_median = median([float(envelope.rt) for envelope in self._envelopes])
         self.condensed_envelope = Envelope(
             peaks=peak_list,
             rt=rt_median,
@@ -361,8 +396,8 @@ class ID(object):
         # TODO: mean or median?
         # NOTE: if we sum the signal then we need to sum the baseline
         self.condensed_envelope.baseline = \
-            median([envelope.baseline for envelope in self._envelopes])
-            
+            median([float(envelope.baseline) for envelope in self._envelopes])
+
     def divide_chromatography(self, should_plot=False):
         import scipy.ndimage as ndi
         import scipy.signal as sig
@@ -400,7 +435,7 @@ class ID(object):
         else:
             division_data = combined_data
 
-        # Gaussian filter:
+        # Gaussian smoothing:
         from scipy.signal import savgol_filter
         smoothed_curves = savgol_filter(division_data, smoothing_width, smoothing_order)
         smoothed_curves[smoothed_curves < 0] = 0
@@ -544,4 +579,3 @@ class ID(object):
             plt.show()
         
         self.neutromer_peak_maximums = neutromer_maximums
-
