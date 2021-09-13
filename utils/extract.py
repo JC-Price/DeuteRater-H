@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+Copyright (c) 2016-2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
 All rights reserved.
 Redistribution and use in source and binary forms,
 with or without modification, are permitted provided
@@ -80,7 +80,7 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
         path_or_file=mzml_path,
         build_index_from_scratch=True
     )
-    mzml_bounds = dml.get_bounds(mzml_fp, index_to_ID)
+    mzml_bounds = dml.get_bounds(mzml_fp, index_to_ID)  # Find what the RT range of the mzML is
 
     # Check for an empty id file chunk
     if len(chunk) <= 0:
@@ -156,10 +156,10 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
             spec_abs = spectrum.i
         except Exception:
             # TODO: use a more specific Exception
-            # catch the exception and move on if the spectru is not found
+            # catch the exception and move on if the spectrum is not found
             continue
 
-        # only deal with ms_level 1 for now
+        # only deal with desired ms_level
         if spectrum.ms_level != settings.ms_level:
             continue
 
@@ -167,9 +167,9 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
         # adding and subtracting the floating point error tolerance allows us
         # to include the extremes of the range
         local_window_min = \
-            spec_rt - (settings.time_window)  
+            spec_rt - (settings.time_window)  # + settings.fpe_tolerance)
         local_window_max = \
-            spec_rt + (settings.time_window)  
+            spec_rt + (settings.time_window)  # + settings.fpe_tolerance)
         try:
             lo_slice_index = \
                 min(chunk[chunk['rt'] > local_window_min].axes[0].tolist())
@@ -234,12 +234,12 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
                         # set the envelopes validity flag to false if no peak
                         #   is found, then move on to the next identification
                         envelope.is_valid = False
-                        envelope.append_peak(Peak(
-                            mz=search_mz,
-                            # TODO: it might be better to set this to NA
-                            abundance=0,
-                            i=peak_num
-                        ))
+                    envelope.append_peak(Peak(
+                        mz=search_mz,
+                        # TODO: it might be better to set this to NA
+                        abundance=0,
+                        i=peak_num
+                    ))
 
             # TODO Do i need to speed this up by removing typecheck?
             # If all of the peaks have been found, add it to the
@@ -254,22 +254,16 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
             def mad(values):
                 m = median(values)
                 return median([abs(a-m) for a in values])
-            lookback_baseline = [l for l in spec_abs[dmt.inclusive_slice(lo_baseline_lookback, hi_baseline_lookback)]]
-            lookahead_baseline = [l for l in spec_abs[dmt.inclusive_slice(lo_baseline_lookahead, hi_baseline_lookahead)]]
-            
-            lookback_baseline_mz = [l for l in spec_mzs[dmt.inclusive_slice(lo_baseline_lookback, hi_baseline_lookback)]]
-            lookahead_baseline_mz = [l for l in spec_mzs[dmt.inclusive_slice(lo_baseline_lookahead, hi_baseline_lookahead)]]
-            
-            lookback_baseline_combined = [[lookback_baseline[i], lookback_baseline_mz[i]] for i in range(len(lookback_baseline)) if lookback_baseline[i] != 0][-100:]
-            lookahead_baseline_combined = [[lookahead_baseline[i], lookahead_baseline_mz[i]] for i in range(len(lookahead_baseline)) if lookahead_baseline[i] != 0][1:101]
-            
-            lookback_baseline = [l[0] for l in lookback_baseline_combined]
-            lookahead_baseline = [l[0] for l in lookahead_baseline_combined]
+            lookback_baseline = [l for l in spec_abs[dmt.inclusive_slice(lo_baseline_lookback, hi_baseline_lookback)] if l != 0][-100:]
+            lookahead_baseline = [l for l in spec_abs[dmt.inclusive_slice(lo_baseline_lookahead, hi_baseline_lookahead)] if l != 0][1:101]
             
             normal_distribution_scale_factor = 1.4826
-            envelope.baseline = normal_distribution_scale_factor * mad(lookback_baseline + lookahead_baseline)
+            envelope.baseline = normal_distribution_scale_factor * mad(lookback_baseline + lookahead_baseline)  # lookback_baseline + lookahead_baseline  #
 
-            id.append_envelope(envelope)
+            try:
+                id.append_envelope(envelope)
+            except Exception as e:
+                print("why")
     mzml_fp.close()
 
     for id in ids:
@@ -284,7 +278,7 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
         index=chunk.index.values,
         columns=['mzs', 'abundances', 'lookback_mzs', 'lookback_abundances',
                  'lookahead_mzs', 'lookahead_abundances', 'rt_min', 'rt_max',
-                 'baseline_signal', "mads",
+                 'baseline_signal', 'signal_noise', "mads",
                  'mzs_list', 'intensities_list', "rt_list", "baseline_list",
                  'num_scans_combined',
                  'mzml_path']
@@ -304,6 +298,7 @@ def extract(settings_path, mzml_path, index_to_ID, chunk):
             peak_out.at[i, 'rt_min'] = id.rt_min
             peak_out.at[i, 'rt_max'] = id.rt_max
             peak_out.at[i, 'baseline_signal'] = id.condensed_envelope.baseline
+            peak_out.at[i, 'signal_noise'] = id.signal_noise
             peak_out.at[i, 'lookback_mzs'] = lb_mzs
             peak_out.at[i, 'lookback_abundances'] = lb_abundances
             peak_out.at[i, 'lookahead_mzs'] = la_mzs
