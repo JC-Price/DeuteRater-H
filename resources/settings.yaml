@@ -125,7 +125,16 @@ ms_level: !!int 1
 
 #The file output the rate groups should be
 # Default = png. Available: png, pdf, svg
-graph_output_format: !!str "png"
+graph_output_format: !!str "pdf"
+
+#$add ability to Median or Average roll up
+#$allowed settings are Average and Median
+protein_combination_method: !!str "Average"
+
+
+#$ whether or not to include some summary columns in the final output
+#$mostly used for troubleshooting.
+verbose_output: !!bool false
 
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ change based on instrument and settings
 
