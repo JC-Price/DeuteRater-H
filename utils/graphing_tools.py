@@ -31,10 +31,7 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 """
-holds  basic functions for graphing. should be called as needed, no need to 
-run as the main.
-we'll call directly from the calculator, which will simplify the code here
-by a significant amount
+functions for making the various graphs
 """
 
 import matplotlib.pyplot as plt
@@ -74,7 +71,8 @@ def graph_optimization_of_error(k_value, theoretical_k, cost, save_file_name, su
     plt.legend()
     plt.savefig(save_file_name, format = save_format)
     plt.clf()
-    
+
+#$graph the enrichment spline
 def enrichment_graph(x_values, y_values, predicted_x, 
                      predicted_y, subject_name, save_file, save_format):
     plt.title(subject_name)
@@ -85,7 +83,8 @@ def enrichment_graph(x_values, y_values, predicted_x,
     
     plt.savefig(save_file, format = save_format)
     plt.clf()
-    
+
+#$graph the protein roll up
 def graph_average_boxplots(values, save_file_name, subject_protein_name, save_format):
     #$give the values some jitter so they are easily visible from each other
     #$jitter is entirely random.  if we decide to remove, just make all  x_values 1
@@ -94,15 +93,13 @@ def graph_average_boxplots(values, save_file_name, subject_protein_name, save_fo
 
     plt.plot(x_values, values, 'r*', markersize=11, label = "Peptide Rates")
     #$since the linewidth is an argument, is needs a value, but if we try and declare it as a dict,
-    #$it will not be defined.  declaring its valuea and forcing to dict gets around that
+    #$it will not be defined.  declaring its value and forcing to dict gets around that
     plt.boxplot(values,
             whiskerprops = dict(linewidth=1.5), 
             boxprops= dict(linewidth=3.0), 
             capprops = dict(linewidth = 2.0), 
             medianprops = dict(linewidth = 2.0)
             )
-    #$the boxplot does have an option to show the average, but getting it into the legend
-    #$is irritating
     plt.plot([1.00], [average], 
              markerfacecolor = "deepskyblue", 
              markeredgecolor = "deepskyblue", 

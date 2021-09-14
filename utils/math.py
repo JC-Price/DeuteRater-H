@@ -35,11 +35,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 '''Mathematical Utilities
 
 This module contains mathematical functions applied in different parts of
-Deuterater. These are fairly standard formulas that are not subject to change
+the extractor. These are fairly standard formulas that are not subject to change
 
-TODO: Discuss which formulas are necessary here and validate that the
-formulas supplied are properly implemented.
-NOTE: This is probably a good point to start writing the pytest framework
 
 '''
 import numpy as np

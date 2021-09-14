@@ -90,10 +90,10 @@ class deuterater_step(object):
         return set(self.required_columns).issubset(firstrow)
   
     
-#$ we're going to make two classes. these will be here so we can swap between
-#$two different settings menus as needed.  we need string and numerical classes
-#$technically we could have a parent and two children, but we'll see if we have
-#$enough similarities to be worth it
+"""
+the next two classes are specific for the settings menu. they allow for strings or booleans, and integers or floats
+which side of the or is determined by a boolean argument
+"""
 class setting_numerical_info(object):
     #$data_object is the object from the menu, starting value is the initial 
     #$value, setting_name is tha name in the settings menu, integer is a 

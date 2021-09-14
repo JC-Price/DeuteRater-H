@@ -79,37 +79,6 @@ def new_parser(input_string):
         if number == "": number =1 #$ need the one to be there if element is alone
         formmap[element] = int(number)
     return formmap
-"""
-# takes a sequence string(C2H5 for example) and turns it into a dictionary
-# ( {'C':2, 'H':5} )
-def parser(elem_comp):
-    #NOTE: cannot handle multiple letter symbols like Al or Se.
-    #Modify if such is needed
-    # initialize values
-    letter = ''
-    num = -100
-    numstr = ''
-    formmap = {}  # formula map.  holdover from original program.
-    for e in elem_comp:
-        # if e is a letter we are done with numbers for the previous 3 letter
-        if e.isalpha():
-            # no point putting '':-100 into the dictionary
-            if letter != '' and num >= 0:
-                formmap[letter] = num
-                num = -100
-            letter = e
-
-        # str was unicode (python 3 changed unicode to str)
-        elif str(e).isnumeric():
-            if num < 0:
-                numstr = e
-            else:
-                numstr += e
-            num = float(numstr)
-    # won't put last value in without this last command
-    formmap[letter] = num
-    return formmap
-"""
 
 # combines two patterns (lists of peaks).
 # The idea is that small groups of atoms are combined into large atoms.
@@ -242,7 +211,6 @@ isotope = namedtuple('isotope', 'mass abundance')
 # X is positions that can be deuterated, not will be TODO:??
 #$ D is a label applied artificially (as in a standard) and does not change
 master_isotope = {
-    # TODO: this is identical to hydrogen?
     'X': [isotope(mass=1.0078246, abundance=0.999844),
           isotope(mass=2.0141021, abundance=0.000156)],
     'H': [isotope(mass=1.0078246, abundance=0.999844),
@@ -308,12 +276,6 @@ def emass(cf, num_peaks,outfile=None):
     result = calculate([isotope(0, 1)], formatted_cf, limit, charge)
     mz_list, intensity_list = print_pattern(result, digits)
     intensity_list = normalize(intensity_list[:trunc_len])
-            
-            # M0 Uncomment from above as well
-            # pd.DataFrame(
-            #     data=M0_intensity_lists,
-            #     columns=['n_D'] + ['I' + str(i) for i in range(trunc_len)]  # noqa
-            # )
         
     return intensity_list
 
@@ -321,21 +283,13 @@ def emass(cf, num_peaks,outfile=None):
 
 
 def main():
-    # uncomment lines below to step through the execution in a debugging tool
-    # and/or print example to console
+
     intensity_values, true_m0 = emass(
         "C46H79N1O10P1", 5)
     print (intensity_values)
     print (true_m0)
     print("This is an auxiliary file to the n-value calculator, and should be treated as a library module")  # noqa
 
-    # uncomment lines below to get outputs: Normalized by M0 and not truncated
-    # # TODO: fix for new emass parameters
-    # unlabeled_dfs, labeled_dfs = emass("C46H{}N1O10P1X{}", 5, 79, 0, .053, 4, step=1, testing=True)  # noqa
-    # (df_unlabeled_mzs, df_unlabeled_intensities, df_M0_unlabeled_intensities, df_full_unlabeled_mzs, df_full_unlabeled_intensities, df_full_unlabeled_M0_intensities) = unlabeled_dfs  # noqa
-    # (df_labeled_mzs, df_labeled_intensities, df_M0_labeled_intensities, df_full_labeled_mzs, df_full_labeled_intensities, df_full_labeled_M0_intensities) = labeled_dfs  # noqa
-    # print(df_unlabeled_intensities.to_string())  # noqa
-    # print("This is an auxiliary file to the n-value calculator, and should be treated as a library module")  # noqa
 
     return
 
