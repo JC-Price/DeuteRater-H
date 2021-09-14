@@ -31,6 +31,10 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
+"""
+class and functions for supporting the extractor
+"""
+
 try:
     from obs.envelope import Envelope  # noqa: 401
     from obs.peak import Peak
@@ -47,7 +51,6 @@ from numpy import mean, median, std, argsort
 class ID(object):
     '''Contains isotoptic envelope data
 
-    TODO: we need to discuss how technical we want this definition to be
 
     Attributes
     ----------

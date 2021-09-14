@@ -30,13 +30,10 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
+"""
+class and functions for supporting the extractor
+"""
 
-
-# TODO: Eventually look into ctypes or numba for streamlining the memory
-#       of this class
-# NOTE: This implementation of deuterater does not actually need the 'i'
-#       attribute of this class. Consult the program logic in the extract
-#       function in extract.py to see why.
 
 
 class Peak(object):
