@@ -37,6 +37,17 @@ import os
 from pathlib import Path
 
 
+"""
+this is to load the settings as global variables.  There are three portions
+the first defines the variable type
+the second is the load function which loads the variables
+the third is the freeze function which allows saving the variables
+
+"""
+
+
+#$sets up the settings for the converter as global variables and has a save (freeze) function for them
+
 mass_cutoffs: object
 rt_proximity_tolerance: int
 mz_proximity_tolerance: int

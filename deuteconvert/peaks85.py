@@ -49,10 +49,6 @@ from deuteconvert.base_converter import BaseConverter
 import deuteconvert.peptide_utils as peputils
 import deuteconvert.settings as settings
 
-# TODO: PTMs to resource json
-# TODO: slots
-# TODO: make sure that all of the virtual base class functions are implemented
-
 
 #location = os.path.abspath(sys.executable)
 location = os.path.dirname(os.path.abspath(__file__))
@@ -67,9 +63,9 @@ class Peaks85(BaseConverter):
 
     # TODO: These constants need organized as well
     accession_parse_token = '|'
-    PROTON_MASS = 1.007825  # TODO: Check that this is correct
+    PROTON_MASS = 1.007825 
 
-    # These are the most likely things to change in different versions
+    #$change the headers to ensure consistent naming
     correct_header_names = {
         'peptide': 'Sequence',
         'rt_mean': 'Precursor Retention Time (sec)',
@@ -97,7 +93,7 @@ class Peaks85(BaseConverter):
         'neutromers_to_extract': 'neutromers_to_extract',
         'literature_n': 'literature_n'
     }
-
+    #$ ensure consistent order
     correct_header_order = [
         'peptide',
         'first_accession',
@@ -135,17 +131,8 @@ class Peaks85(BaseConverter):
 
         super().__init__()
         settings.load(settings_path)
-
-    @property
-    def converted_data(self):
-        if self._id_df.size == 0:
-            raise RuntimeError('The converter has not run to completion')
-        return self._id_df
-
-    def load_files(self, parameter_list):
-        # TODO: load logic, maybe get rid of loading in init?
-        pass
-
+        
+    #$get the data and do the analysis
     def convert(self):
         # try:
         df_proteins = self._prepare_proteins()
@@ -156,9 +143,10 @@ class Peaks85(BaseConverter):
         self._id_df = Peaks85._merge_data(
             df_feature, df_protein_peptides, df_proteins
         )
-
+        #$stps to do in order.  yes proximity filter should be in their twice
+        #$first to save time, and second to ensure no duplicates have popped up in the 
+        #$expand_to_Charge_States function.
         funcs = [
-            Peaks85._initial_filters,
             Peaks85._interpret_aa_sequences,
             Peaks85._set_n_peaks,
             Peaks85._proximity_filter,
@@ -176,6 +164,8 @@ class Peaks85(BaseConverter):
     def _parse_accession(acc):
         return acc.split(Peaks85.accession_parse_token)[1]
 
+    #$Peaks has a unique way of writing ptms, need to get a dictionary of valid symbols
+    #$ and check for mutations
     @staticmethod
     def _process_ptm(ptm_string, peptide_sequence):
         seq = peptide_sequence
@@ -191,6 +181,7 @@ class Peaks85(BaseConverter):
                 seq = re.sub(r'\(sub [a-zA-Z0-9]\)', '', seq)
         return seq
 
+    #$actually merge the three separate inputs
     @staticmethod
     def _merge_data(df_feature, df_protein_peptides, df_proteins):
         data = df_feature.merge(
@@ -211,7 +202,8 @@ class Peaks85(BaseConverter):
             ascending=[True, False, True]
         ).reset_index(drop=True)
         return data
-
+    
+    #$deal with the peptide_features file
     def _prepare_feature(self):  # change RT mean (in feature) to rt_mean
         df = pd.read_csv(self.feat_path)
         # Get retention time column names
@@ -290,7 +282,7 @@ class Peaks85(BaseConverter):
 
         df = df.sort_values(by=['peptide'])
         return df
-
+    #$prepare the protein peptide file, mostly renaming, trimming and some parsing.
     def _prepare_protein_peptides(self):
         df = pd.read_csv(self.protpep_path)
         keep_cols = [
@@ -321,6 +313,7 @@ class Peaks85(BaseConverter):
         df = df.drop('ptm', axis=1)
         return df
 
+    #$prepare the protein file, mostly renaming, trimming and some parsing.
     def _prepare_proteins(self):
         df = pd.read_csv(self.prot_path)
         keep_cols = ['Accession', '#Peptides', '#Unique', 'Description']
@@ -342,14 +335,8 @@ class Peaks85(BaseConverter):
         df['protein_existence'] = description_strings[3]
         df['sequence_version'] = description_strings[4]
         return df
-
-    @staticmethod
-    def _initial_filters(df):
-        # TODO: discuss which parameter is the most important
-        # df = df.loc[df.groupby('peptide')['quality'].idxmax(), ]
-        # df = df.loc[df.groupby('peptide')['avg_ppm'].idxmax(), ]
-        return df
-
+    
+    #$turn the amino acids sequences into something we can calculate off of
     @staticmethod
     def _interpret_aa_sequences(df):
         df.assign(
@@ -396,6 +383,7 @@ class Peaks85(BaseConverter):
             df.at[i, 'literature_n'] = literature_n
         return df
 
+    #$determine the number of isotope peaks to extract
     @staticmethod
     def _set_n_peaks(df):
         for mass_cutoff, n_peaks in settings.mass_cutoffs:
@@ -405,13 +393,14 @@ class Peaks85(BaseConverter):
             ] = n_peaks
         return df
 
+    #$ppm calculation
     @staticmethod
     def _ppm_calculator(target, actual):
         ppm = (target-actual)/target * 1000000
         return abs(ppm)
-    #$swapped to use multiple for loops instead of df.  need to recalculate
-    #$all ppms based on current row, and there should a small number of relevant
-    #$masses so we can break out of the internal for quickly
+    #$since we are extracting based on mz and retention time we need
+    #$to ensure they are unique.  this removes non-unique retention times and m/z pairs
+    #$ based on settings the user provides
     @staticmethod
     def _proximity_filter(df):
         try:
@@ -434,6 +423,7 @@ class Peaks85(BaseConverter):
         too_close = list(set(too_close))
         return df.drop(df.index[too_close])
 
+    #$expand to multiple charge states that may be present but were not identified
     @staticmethod
     def _expand_to_charge_states(df):
         all_columns = list(df.columns)
@@ -451,6 +441,7 @@ class Peaks85(BaseConverter):
                 all_data.append(quick_list)
         return pd.DataFrame(all_data, columns = all_columns)
 
+    #$need to sort, rename columns and mark too short peptides.    
     @staticmethod
     def _finalize(df):
         df = df[df['peptide'].str.len() >= 6]  # TODO: Make magic number a setting

@@ -31,7 +31,7 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-
+#$template for other templates
 from abc import ABC, abstractmethod
 
 # TODO: determine which columns are required
@@ -41,10 +41,6 @@ class BaseConverter(ABC):
     def __init__(self):
         super().__init__()
 
-    @property
-    @abstractmethod
-    def converted_data(self):
-        raise NotImplementedError
 
     @classmethod
     @abstractmethod
