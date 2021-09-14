@@ -62,6 +62,7 @@ from gui_software.Rate_Settings import Rate_Setting_Menu
 #location = os.path.dirname(os.path.abspath(sys.executable))
 location = os.path.dirname(os.path.abspath(__file__))
 
+#$set locations for the various settings files
 rate_settings_file = os.path.join(location, "resources","temp_settings.yaml")
 default_rate_settings = os.path.join(location, "resources","settings.yaml")
 guide_settings_file = os.path.join(location, "resources", 
@@ -69,9 +70,10 @@ guide_settings_file = os.path.join(location, "resources",
 default_guide_settings = os.path.join(location, "resources", 
                                       "guide_settings.yaml")
 
-#$make some basic classes to hold some data.  If need to adjust
-#$output names or columns required from input, do it here
-#$if we add other id types just yank id columns out and make a variable list
+#$each analysis step gets a deuterater_step object.  first argument is the output name
+#$so we can check for overwriting (except extract which has dynamic output names)
+#$second argument is columns required of the input so we don't have to check
+#$when we're actually doing the calculations.
 Extract_object = deuterater_step("", ['Precursor Retention Time (sec)',
                     'Precursor m/z','Identification Charge', 'Sequence',
                     'Protein ID', "cf"])
@@ -86,8 +88,6 @@ delta_by_enrichment = deuterater_step("delta_by_enrichment.tsv", [
     "Precursor Retention Time (sec)", "Protein ID", "Protein Name", "Precursor m/z",
     "Identification Charge", "Homologous Proteins", "n_isos", "time","literature_n",
     "Sequence", "cf", "abundances", "mzs", "sample_id", "Time Enrichment", "Enrichment Values"])
-#$these need filling out, and will require adjustment as we add variables or equation types
-#$also need to adjust based on n_isos and which types of calculations used
 sequence_rate_calculation = deuterater_step("rate_by_sequence.csv", ["Protein ID", "Protein Name",
     "Sequence","n_isos", "time", "sample_id", "Time Enrichment", "Enrichment Values",
     "abundances", "Theoretical Unlabeled Normalized Abundances", "n_isos", "literature_n"
@@ -101,7 +101,7 @@ protiein_rate_combination = deuterater_step("Final_Protein_Rates.csv", [
     "dropped points", "M0 constantly decreasing",
     "Error column"
 ])
-
+#$create a dictionary so we can call the deuterater_step objects
 step_object_dict = {
     "Extract":Extract_object,
     "Provide Time and Enrichment":Time_Enrich_object,
@@ -110,7 +110,9 @@ step_object_dict = {
     "Rate Calculation": sequence_rate_calculation,
     "Combine Sequence Rates": protiein_rate_combination
     }
-
+#$ converter only does something other than make a file with a header for 
+#$id files made with Peaks.  each version is sligthly different so needs a differnt
+#$analysis
 convert_options = {
     "Peaks 8.5": Peaks85,
     "Peaks X+": PeaksXplus,
@@ -118,7 +120,7 @@ convert_options = {
     "Template": ""
     }
 
-
+#$need 3 different output files from peaks, make sure the needed headers are there 
 convert_needed_headers = {
     "Peaks 8.5": deuteconvert_peaks_required_headers(
         ['Accession', '#Peptides', '#Unique', 'Description'],
@@ -138,13 +140,13 @@ convert_needed_headers = {
             'RT', 'm/z', 'z', 'Accession']
         )
     }
-
+#$default converter option
 default_converter = "Template"
-#TODO$ may need to adjust the header or shove in the n-value calculator
+#$ get the header we want if using Peaks
 converter_header = PeaksXplus.correct_header_order
 
 
-
+#$prepare the gui
 main_file_ui_location = os.path.join(location, "ui_files", "Main_Menu.ui")
 loaded_ui = uic.loadUiType(main_file_ui_location)[0]
 class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
@@ -177,7 +179,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         self.Logo.setScaledContents(True)
         self.setWindowTitle("DeuteRater")
     
-    
+    #$protmpt the user for necessary Peaks outputs
     def Peaks_File_Collection(self, header_checker_object):
          #$ get the files we need
         #TODO switch to reading from a folder instead of individual files?$
@@ -265,6 +267,8 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         self.file_loc = os.path.dirname(save_file)
         QtWidgets.QMessageBox.information(self, "Success", 
                 "Guide file successfully saved")
+    
+    #$adjusts the text fo the "Rate Calculation" button
     def _calc_rates(self):
         try:
             
@@ -272,22 +276,25 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
             self.run_rate_workflow()
         finally:
             self.RateCalculationButton.setText("Rate Calculation")
-        
+     
+    #$calls the various functions to calculate turnover rates
     def run_rate_workflow(self):
-        #$will need some settings
+        #$load the settings so we can use them
         settings.load(rate_settings_file)
         
         #$first we need to check which steps are checked 
         worklist = self.check_table_checklist()
-        #$ only proceed if we have a 
+        #$ only proceed if we have steps to perform
         if worklist == []:
             QtWidgets.QMessageBox.information(self, "Error", ("No options were "
                 "checked. Please check steps to perform and try again"))
             return
+        #$worklist is a string in the case of an error
         elif type(worklist) == str:
             QtWidgets.QMessageBox.information(self, "Error", worklist)
             return
-        #$second we need to an output folder and check it for output folder
+        #$second we need to an output folder and check it for the ability to write
+        #$ and if we will be overwriting anything.
         QtWidgets.QMessageBox.information(self, "Info", ("Please select folder "
                 "for output"))
         output_folder = QtWidgets.QFileDialog.getExistingDirectory(
@@ -297,7 +304,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
             QtWidgets.QFileDialog.ShowDirsOnly)
         if output_folder == "": return
         #$change location we start asking for things at
-        #$don't change since all output is going in here
+        #$don't change after this point since all output is going in here
         self.file_loc = output_folder
         
         #don't care if overwrite rate_settings.yaml but should check if want to use the settings already in the folder
@@ -346,17 +353,18 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         for worklist_step in no_extract_list:
             step_object_dict[worklist_step].complete_filename(self.file_loc)
             outputs_to_check.append(step_object_dict[worklist_step].full_filename)
-        #$if should only fail if an extract only, but that may occur
-        #if outputs_to_check != []:
+
         proceed = self.check_file_removal(outputs_to_check)
         if not proceed: 
             return
         
         #$now we need to get input and do the work. each step can only occur 
         #$once and they occur in order. so we will write them in order
-        #todo$ see if we can compress the code and make sure it is readable
         previous_output_file = "" 
         extracted_files =[]
+        #$if the user is doing a full worklist it makes since to run the 2nd step
+        #$(requesting their input) first so we don't bother stall partway through
+        #$to ask for input.  this boolean governs that
         make_table_in_order = True
         for analysis_step in worklist:
             if analysis_step == "Extract":
@@ -385,11 +393,11 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     extracted_intermediate_files = extracted_files
                 needed_files = list(set(extracted_files + extracted_intermediate_files))
                 #$won't know what files to check until this point so need to check again here
-                #$and ask permission of course
+                #$and ask permission to delete them of course
                 proceed = self.check_file_removal(needed_files)
                 if not proceed:  return
                 #$need to run the table if necessary. taken from the 
-                #$"Provide Time and Enrichment" elif
+                #$"Provide Time and Enrichment" elif lower down
                 if "Provide Time and Enrichment" in worklist:
                     previous_output_file = step_object_dict[
                         "Provide Time and Enrichment"].full_filename
@@ -423,7 +431,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     #$hit the proceed button on the table (same check as in
                     #$elif analysis_step == "Theory Generation" )
                     if not os.path.exists(previous_output_file): return
-                #$ modified from the extract-dir argument from the command line
+                #$actually run the extraction
                 for m in tqdm(range(len(mzml_files)), total=len(mzml_files), desc="Extracting mzml files: "):
                     extractor = Extractor(
                         id_path=os.path.join(self.file_loc, id_file),
@@ -434,7 +442,9 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     extractor.load()
                     extractor.run()
                     extractor.write()
+                    #$need to delete classes when they're done or they may linger in RAM
                     del extractor
+                #$this takes awhile so only bother with it if necessary
                 if settings.use_chromatography_division != "No":
                     divider = ChromatographyDivider(settings_path=rate_settings_file,
                                                     input_paths=extracted_intermediate_files,
@@ -442,6 +452,8 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                                                     )
                     divider.divide()
                     del divider
+            #$if we've already done this (make_table_in_order is false) there is no need
+            #$ to 
             elif analysis_step == "Provide Time and Enrichment" and make_table_in_order:
                 #$if coming right after a list
                 if extracted_files == []:
@@ -452,12 +464,13 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                         )
                     if extracted_files == []: return
                     #$ensure the input files are good. only need to deal with
-                    #$if the user just selected
+                    #$if the user just selected instead of extracting fresh
                     for e_file in extracted_files:
                         infile_is_good = self.check_input(
                             step_object_dict[analysis_step], e_file)
                         if not infile_is_good: return
-                    
+                #$there are two tables that must be handled in order
+                
                 #$ now that we have the extracted files we can make a table
                 #$the talbe will handle the output
                 previous_output_file = step_object_dict[
@@ -475,6 +488,8 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                             previous_output_file, settings.max_enrichment_allowed)
                     self.get_data_table2.exec_()
                 else: return
+                
+                #$now that we have all the data we can graph the results in case the user wishes to view the data
                 if os.path.isfile(previous_output_file):
                         enrichment_graph_folder = os.path.dirname(previous_output_file)
                         enrichment_graph_folder = os.path.join(enrichment_graph_folder,
@@ -488,7 +503,9 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                             return 
                             
                 else: return
-                
+            
+            #$now we need to merge the various extracted files into one file
+            #$for future analysis
             elif analysis_step == "Combine Extracted Files":
                 #$since the files are in the table can just read that in
                 if previous_output_file == "":
@@ -523,6 +540,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 del combiner
                 previous_output_file = step_object_dict[analysis_step].full_filename
                 
+            #$this step is to get all the numberical values necessary to do the fitting in the following steps
             elif analysis_step == "Calculate Delta by Enrichment":
                 if previous_output_file == "":
                     previous_output_file = self.collect_single_file(
@@ -550,6 +568,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 del enrich_delta
                 previous_output_file = step_object_dict[analysis_step].full_filename
                 
+            #$this step calls the fitter and runs it
             elif analysis_step == "Rate Calculation":
                 
                 if previous_output_file == "":
@@ -567,7 +586,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     if not infile_is_good: return
                 
                 #$need to get a graph folders and ensure they exist
-                #$don't worry about overwriting files
+                #$don't worry about overwriting files. not deleting all just causes confusion.
                 GraphFolder_isotopes = os.path.join(self.file_loc, "Graph_Folder_Isotopes")
                 self.make_folder(GraphFolder_isotopes)
                 if settings.error_estimation == "none":
@@ -587,6 +606,8 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 ratecalc.write()
                 del ratecalc
                 previous_output_file = step_object_dict[analysis_step].full_filename
+                
+            #$last thing to do is to roll up the proteins
             elif analysis_step == "Combine Sequence Rates":
                 if previous_output_file == "":
                     previous_output_file = self.collect_single_file(
@@ -619,7 +640,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         
         
        
-        
+    #$this checks which parts of the worklist table are checked and that there are no blanks    
     def check_table_checklist(self):
         current_worklist =[]
         error_check = []
@@ -638,16 +659,9 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
             return ("There are gaps in your worklist.  Please check all boxes "
                     "between the first and last checked box")
         return current_worklist
-    
-    #$quick way to get a response to a question to the user.  exiting is a "No"
-    def question_for_user(self, message):
-        response = QtWidgets.QMessageBox.question(self, "Question", message,
-                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-        if response == QtWidgets.QMessageBox.Yes: 
-            return True
-        else:
-            return False
 
+    #$ask the user for detailed information.  mostly for detailing which
+    #$files will be overwritten
     def large_text_question_for_use(self, title, infoText, detailedText):
         question = QtWidgets.QMessageBox(self)
         question.setWindowTitle("Question")
@@ -668,6 +682,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         else:
             return False
     
+    #$give information to the user
     def large_text_information(self, title, text, detailedText):
         info = QtWidgets.QMessageBox(self)
         info.setWindowTitle(title)
@@ -682,6 +697,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
         info.setStyleSheet("QMessageBox{min-width:650 px;}")
         info.exec_()
 
+    #$ask user for one file
     def collect_single_file(self, to_load, step_name, load_type):
         QtWidgets.QMessageBox.information(self, "Info", ("Please choose the {} "
                 "file to load for {} step".format(to_load, step_name)))
@@ -690,6 +706,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 load_type)
         return filename
     
+    #$ask user for potentially more than one file
     def collect_multiple_files(self, to_load, step_name, load_type):
         QtWidgets.QMessageBox.information(self, "Info", ("Please choose the {} "
                 "files to load for {} step".format(to_load, step_name)))
@@ -698,17 +715,15 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 load_type)
         return filenames
     
+    #$pull up the settings menu.
     def change_settings(self):
         self.set_menu = Rate_Setting_Menu(self, rate_settings_file)
         self.set_menu.show()
      
-    #$ we have some cases where we need to remove files that we will create 
-    #$later (and so would be overwritten anyway). we'll just do error messages
-    #$ and so on here.  
-    #$ask_permission is for cases where permission is needed.  there are cases,
-    #$ for example the settings file where the file is identical to what is already there 
-    #$or we've already asked permission, where we need to check that we have the ability
-    #$to overwrite the files but don't need to ask
+    #$checks if a file exists, and if we can actually do so.  if we can't
+    #$an error will be triggered later so we'll sort that out here.  
+    #$has the advantage of deleting the files so the user can't open a file between now and when we write it
+    #$ask the user about this for everything but settings (that is dealt with better in the run_rate_worklist function)
     def check_file_removal(self, list_of_filenames, ask_permission = True):
         files_to_remove = []
         open_files = []
@@ -734,16 +749,13 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                                                      "They are likely open in another program. Please close "
                                                      "and try again.",
                                             "Files unable to be opened:\n" + ",\n".join(open_files))
-                # QtWidgets.QMessageBox.information(self, "Error",
-                # 								  ("The following files cannot be overwritten:\n{}\n"
-                # 								   "They are likely open in another program. please close "
-                # 								   "and try again.".format(",\n".join(open_files)))
-                # 								  )
+
                 return False
         # $will return true if no files already exist or the user wants to
         # $overwrite and they can be removed so we have permission
         return True
-        
+      
+    #$check a given input file has the headers we need
     def check_input (self, relevant_object, filename):
         has_needed_columns = relevant_object.check_input_file(filename)
         if not has_needed_columns:
@@ -752,8 +764,8 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 filename)))
         return has_needed_columns
     
-    #$there are cases (specifically the table going to theory) where there
-    #$is a chance that the files referenced in a guide file may not exist
+    #$there are cases (specifically the enrichment table referencing extracted files) where there
+    #$is a chance that the files referenced may not exist
     #$this will check for that
     def check_files_from_files(self, input_file, filename_column):
         with open (input_file, 'r') as infile:
@@ -783,30 +795,20 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 rmtree(folder)
             os.makedirs(folder)
             
-    @staticmethod
-    def _get_file_names(folder_loc, operations, object_dict):
-        needed_files = []
-        for o in operations:
-            if o != "Extract":
-                full_filename = os.path.join(folder_loc, 
-                                             object_dict.output_filename)
-                needed_files.append(full_filename)
-        return needed_files
-            
-   
     
 #$since we have to load settings in each file, and need a way to adjust
 #$settings, we'll 
 def make_temp_file(filename, new_filename):
     copyfile(filename, new_filename)
 
+#$the actual main to run the Gui
 if __name__ == '__main__':
     #$needed for windows multiprocessing which will happen at some point
     import sys
     mp.freeze_support()
     app = QtWidgets.QApplication(sys.argv)
-    app.setApplicationDisplayName("DeuteRater")
-    app.setApplicationName("DeuteRater")
+    app.setApplicationDisplayName("DeuteRater-H")
+    app.setApplicationName("DeuteRater-H")
     app.setWindowIcon(QtGui.QIcon(os.path.join(location, "resources", "Logo_64_clean.PNG")))
     gui_object = MainGuiObject(None)
     gui_object.show()
