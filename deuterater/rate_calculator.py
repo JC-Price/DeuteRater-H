@@ -31,12 +31,11 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-'''Calculation of turnover rates
-this is based on the DeuteRater_4.0-4.2 class.  calculate had to be completely 
-revamped.
-
-This class will be larger than in normal deuterater because of the need to dynamically
-adjust the maximum labeling. may need to split later
+'''
+This is the actual calculation of pepetide turnover rates and so is the largest
+and most complex class. It is also the most expensive in terms of computer resources
+and calculation time.  Be cautious running on a large dataset without multiprocessing
+it will take a long time.
 
 '''
 
@@ -63,7 +62,9 @@ import deuterater.settings as settings
 from utils.graphing_tools import graph_rate_results, graph_optimization_of_error
 from utils.emass import normalize
 
-#$lambda's cannot be pickled so we'll make a class to deal with the spline issue
+#$the spline fit used for the deuterium enrichment was previously used as a lambda with a fucntion call
+#$but the pickler for multiprocessing will not take a lambda
+#$this function does the spline calculations in a pickling safe manner.
 class pickle_safe_spline(object):
     def __init__(self, time_values, deuterium_values):
         self.make_the_spline(time_values, deuterium_values)
@@ -81,6 +82,7 @@ class pickle_safe_spline(object):
             return_value[return_value<0] =0
             return return_value
 
+#$used for an error estimation graph
 def parabola(x, a, b, c):
     return a*x**2 + b*x + c
 
@@ -88,16 +90,20 @@ group_column1 = "sample_id"
 group_column2 = "Sequence"
 time_column = "time"
 
-#$deal with fitting warnings created during fitting
-w.simplefilter("error", ODEintWarning) #catches"ODEintWarning: Excess work done on this call (perhaps wrong Dfun type). Run with full_output = 1 to get quantitative information.". 
-#$this is =associated with poor fits so we can use to filter out problems later
-w.simplefilter("ignore", UserWarning) #blocks "dopri5: larger nsteps needed" when  fitting (have tested increasing step size.  didn't help and increased calculation length so we'll ignore for now)
+#$need to deal with warnings.  in particular fitting warnings (ODEintWarning) should not be trusted
+#$turn them into an error so we can catch.  will allow UserWarnings since it usually triggers on "dopri5: larger nsteps needed"
+#$which we do not currently seek to catch. 
+w.simplefilter("error", ODEintWarning) 
+w.simplefilter("ignore", UserWarning) 
 
+
+#$as with all the calculation steps this is a class for consistent calls in the main
 class RateCalculator():
     def __init__(self, model_path, out_path, graph_folder_isotopes, graph_folder_optimization, settings_path):
        
         settings.load(settings_path)
         model_path = Path(model_path)
+        #$allow .tsv and .csv
         if model_path.suffix == '.tsv':
             self.model = pd.read_csv(
                 filepath_or_buffer=str(model_path),
@@ -116,7 +122,7 @@ class RateCalculator():
             self._n_processors = mp.cpu_count()
         else:
             self._n_processors = settings.n_processors
-        #$breaks windows/python interactions if too many cores are used.  very niche application but still relevant
+        #$if multiprocessing need to set that up. more than 60 cores causes problems for windows
         if self._n_processors > 60:
             self.n_processors = 60
         self.make_final_header()
@@ -130,14 +136,12 @@ class RateCalculator():
     #$this function governs which types of calculations to do and which
     #$ rate equation to use. collects results and puts them in self.rate_model
     def calculate(self):
-        #w.filterwarnings("ignore")
         start_time = time.time()
         self.initial_filter()
         self.perform_rate_calculations()
         print ("Time Taken: ", time.time() -start_time)
-        #w.filterwarnings("default")
     
-        
+    #$make needed header
     def make_final_header(self):
         self.final_header = ["Subject ID", "Protein ID", "Protein Name", 
                              "Sequence", "Abundance rate", "Unique Timepoints",
@@ -153,27 +157,27 @@ class RateCalculator():
                              "Error column"]
         
         
-    #$need to use an ODE to calculate the new maximum delta change at the relevant timepoints
+    #$since the calculation is more complicated than in other modules there are more functions to govern it
+    #$this function seperates the data by subject and then calculates the enrichment spline. this is then
+    #$passed to run_parallel_groupby which governs the multiprocessing
     def perform_rate_calculations(self):
-        #$now we need to make a dict with sample_id as the key and the times as a list of the values
-        self.time_dict = RateCalculator._make_time_dict(self.model)
+        #$list to hold output
         rate_calculation_output = []
         #$first we will group by the sample_id so we can grab the water equation 
-        #$we need to split by group anyway since individual sequences will have more
-        #$sequences to fit than subjects so sequences should get the multiprocessing
+        #$we need to split by group anyway individual enrichment curves means we need
+        #$different calculations for the same peptide in different subjects
         for sample_id, id_df in tqdm(self.model.groupby(group_column1), desc="Subject: "):
             
             max_sample_time = id_df[time_column].max()
-            #$need time sorted for brent calculation.  will attempt to sort here to save time
+            #$need time sorted for the error minimization function.  will sort here to save time
             id_df = id_df.sort_values(by = time_column)
             
             #$since values are the same pulling the top row makes as much sense as any other row
-            #$just set up the spline
+            #$set up the spline
             first_row = id_df.iloc[0].to_dict() 
             subject_x_values = [float(x) for x in first_row["Time Enrichment"].split(", ")]
             subject_y_values = [float(x) for x in first_row["Enrichment Values"].split(", ")]
             spline_object =pickle_safe_spline(subject_x_values, subject_y_values)
-            #spline = spline_interp(subject_x_values, subject_y_values)
                 
             #$multiple groupbys should improve readability and is faster than merging them    
             #$will multiprocess the second groupby. since we are grouping by id and sequence
@@ -187,59 +191,60 @@ class RateCalculator():
             rate_calculation_output.extend(one_sample_results)
         self.final_rates_model = pd.DataFrame(rate_calculation_output, columns = self.final_header)       
                     
-    #$second answer https://stackoverflow.com/questions/26187759/parallelize-apply-after-pandas-groupby accessed 12/16/2020
+    #$run the analysis.  this function doesn't have any calculation itself 
+    #$it prepares a function for multiprocessing and thne begins the multiprocessing
+    #$uses second answer https://stackoverflow.com/questions/26187759/parallelize-apply-after-pandas-groupby accessed 12/16/2020
     def run_parallel_groupby(self, groupby_object, sample_id, sample_spline, max_sample_time):
+        if settings.debug_level == 0:
+            mp_pools = mp.Pool(self._n_processors)
+            #$have to pass the settings explicitly (the global settings doesn't play nice with the multiprocessing)
+            mp_func = partial(RateCalculator._rate_calculation,
+                              sample_id = sample_id,
+                              sample_spline =sample_spline,
+                              graph_folder_isotopes = self.graph_folder_isotopes,
+                              graph_folder_optimization = self.graph_folder_optimization, 
+                              minimum_nonzero_points = settings.min_non_zero_timepoints_rate,
+                              error_estimation = settings.error_estimation,
+                              lowest_allowed_norm_isotope = settings.lowest_allowed_norm_isotope,
+                              highest_allowed_norm_isotope = settings.highest_allowed_norm_isotope,
+                              m0_decreasing_allowed_noise = settings.m0_decreasing_allowed_noise,
+                              median_absolute_residuals_cutoff_single_point = settings.median_absolute_residuals_cutoff_single_point,
+                              median_absolute_residuals_cutoff_two_points = settings.median_absolute_residuals_cutoff_two_points,
+                              median_absolute_residuals_cutoff_general = settings.median_absolute_residuals_cutoff_general,
+                              desired_points_for_optimization_graph = settings.desired_points_for_optimization_graph,
+                              max_sample_time = max_sample_time,
+                              graph_type = settings.graph_output_format
+                              )
+            #list is needed to make the tqdm work.  imap_unordered only refers to the order the groupbys entries are analyzed in it maintains the time sort of the data. i did check that.
+            results_list = list(tqdm(mp_pools.imap_unordered(mp_func,groupby_object), total = len(groupby_object), desc="Peptide Rate Calculation: "))
+            mp_pools.close()
+            mp_pools.join()
+        else:
+            #$no multiprocessing, for troubleshooting
+            results_list = []
+            mp_func = partial(RateCalculator._rate_calculation,
+                              sample_id = sample_id,
+                              sample_spline =sample_spline,
+                              graph_folder_isotopes = self.graph_folder_isotopes,
+                              graph_folder_optimization = self.graph_folder_optimization, 
+                              minimum_nonzero_points = settings.min_non_zero_timepoints_rate,
+                              error_estimation = settings.error_estimation,
+                              lowest_allowed_norm_isotope = settings.lowest_allowed_norm_isotope,
+                              highest_allowed_norm_isotope = settings.highest_allowed_norm_isotope,
+                              m0_decreasing_allowed_noise = settings.m0_decreasing_allowed_noise,
+                              median_absolute_residuals_cutoff_single_point = settings.median_absolute_residuals_cutoff_single_point,
+                              median_absolute_residuals_cutoff_two_points = settings.median_absolute_residuals_cutoff_two_points,
+                              median_absolute_residuals_cutoff_general = settings.median_absolute_residuals_cutoff_general,
+                              desired_points_for_optimization_graph = settings.desired_points_for_optimization_graph,
+                              max_sample_time = max_sample_time
+                              )
+            for g in groupby_object:
+                results_list.append(mp_func(g))
         
-        mp_pools = mp.Pool(self._n_processors)
-        #$have to pass the settings explicitly (the global settings doesn't play nice with the multiprocessing)
-        mp_func = partial(RateCalculator._rate_calculation,
-                          sample_id = sample_id,
-                          sample_spline =sample_spline,
-                          graph_folder_isotopes = self.graph_folder_isotopes,
-                          graph_folder_optimization = self.graph_folder_optimization, 
-                          minimum_nonzero_points = settings.min_non_zero_timepoints_rate,
-                          error_estimation = settings.error_estimation,
-                          lowest_allowed_norm_isotope = settings.lowest_allowed_norm_isotope,
-                          highest_allowed_norm_isotope = settings.highest_allowed_norm_isotope,
-                          m0_decreasing_allowed_noise = settings.m0_decreasing_allowed_noise,
-                          median_absolute_residuals_cutoff_single_point = settings.median_absolute_residuals_cutoff_single_point,
-                          median_absolute_residuals_cutoff_two_points = settings.median_absolute_residuals_cutoff_two_points,
-                          median_absolute_residuals_cutoff_general = settings.median_absolute_residuals_cutoff_general,
-                          desired_points_for_optimization_graph = settings.desired_points_for_optimization_graph,
-                          max_sample_time = max_sample_time,
-                          graph_type = settings.graph_output_format
-                          )
-        #list is needed to make the tqdm work.  imap_unordered only refers to the order the groupbys entries are analyzed in it maintains the time sort of the data. i did check that.
-        results_list = list(tqdm(mp_pools.imap_unordered(mp_func,groupby_object), total = len(groupby_object), desc="Peptide Rate Calculation: "))
-        mp_pools.close()
-        mp_pools.join()
-        """
-        #$no multiprocessing, for troubleshooting
-        results_list = []
-        mp_func = partial(RateCalculator._rate_calculation,
-                          sample_id = sample_id,
-                          sample_spline =sample_spline,
-                          graph_folder_isotopes = self.graph_folder_isotopes,
-                          graph_folder_optimization = self.graph_folder_optimization, 
-                          minimum_nonzero_points = settings.min_non_zero_timepoints_rate,
-                          error_estimation = settings.error_estimation,
-                          lowest_allowed_norm_isotope = settings.lowest_allowed_norm_isotope,
-                          highest_allowed_norm_isotope = settings.highest_allowed_norm_isotope,
-                          m0_decreasing_allowed_noise = settings.m0_decreasing_allowed_noise,
-                          median_absolute_residuals_cutoff_single_point = settings.median_absolute_residuals_cutoff_single_point,
-                          median_absolute_residuals_cutoff_two_points = settings.median_absolute_residuals_cutoff_two_points,
-                          median_absolute_residuals_cutoff_general = settings.median_absolute_residuals_cutoff_general,
-                          desired_points_for_optimization_graph = settings.desired_points_for_optimization_graph,
-                          max_sample_time = max_sample_time
-                          )
-        for g in groupby_object:
-            results_list.append(mp_func(g))
-        """
         return results_list
     
     
     #$for now this drops this just drops error messages in certain columns
-    #$not sure this is the most efficient way to do this
     def initial_filter(self):
         self.model["Theoretical Unlabeled Normalized Abundances"] = \
             self.model["Theoretical Unlabeled Normalized Abundances"].apply(
@@ -256,13 +261,9 @@ class RateCalculator():
         except:
             return np.nan
     
-    @staticmethod
-    def _make_time_dict(df):
-        final_dict = {}
-        for sample_id, sample_df in df.groupby(group_column1):
-            final_dict[sample_id] = sample_df[time_column ].unique()
-        return final_dict
-    
+    #$this is the return function for _rate_calculation
+    #$since it is a pandas series and there are many values, this function was made to make the 
+    #$_rate_calculation function more readable since it can error out and need output at several different locations
     @staticmethod
     def _make_return_series(sample_id, protein_name, protein_english_name,
                                  sequence_name, rate, time_data, unique_times,n_isos,
@@ -288,7 +289,7 @@ class RateCalculator():
                 })
         return return_series
 
-    
+    #$perform the rate calculation
     @staticmethod
     def _rate_calculation(groupby_tuple, sample_id, sample_spline, 
                           graph_folder_isotopes, graph_folder_optimization,
@@ -302,7 +303,7 @@ class RateCalculator():
                           desired_points_for_optimization_graph, 
                           max_sample_time,
                           graph_type):
-        #$prepare the data
+
         sequence_name = groupby_tuple[0]
         seq_df = groupby_tuple[1]
         
@@ -318,40 +319,21 @@ class RateCalculator():
         #$get the data out 
         empirical_data = np.asarray(seq_df["abundances"])
         
-        #$before we start doing anything complicated let's check that the data is worth doing
-        #$ we'll start with minimum non_zero time points but others can be added as well
+        #$confirm the data is good before complex calculations begin
+        #$ currently confirms that there are as many non-zero timepoints as the user specified.
         unique_times = set(time_data)
         non_zero_times = [t for t in unique_times if t!=0.0]
         if len(non_zero_times) < minimum_nonzero_points:
-            #$return the needed values. Since we're compressing this will be new
-            #$not adding on the the input values
             return_series = RateCalculator._make_return_series(sample_id, 
                                  protein_name, protein_english_name,
                                  sequence_name, "", time_data, unique_times,n_isos, "",
                                  "insufficient non-zero timepoints", "", "", "")
             return return_series
         
-        #$need to define y0 as soon as possible since if we're not doing metabolomics normalization we need these to determine filter values
         #$theoretical y0 from emass
         y0 = generic_first_row["Theoretical Unlabeled Normalized Abundances"]
-# =============================================================================
-#         #$approximate means of calculating y0 is you don't know theoretical.
-#         #$in the highly unlikely event it is better than theoretical, make sure to force it to be 0.
-#         if min(time_data) > 4: #$ the assumption is not even as weakly valid as it normally is without a time near 0.  we can allow 1 or 3 but not a week out
-#             return_series = RateCalculator._make_return_series(sample_id, 
-#                              protein_name, protein_english_name,
-#                              sequence_name, "", time_data, 
-#                              unique_times,n_isos,dropped_points,
-#                              "lacking timepoint less than 4",
-#                              m0_constantly_decreasing, "", "")
-#             return return_series
-#         nfit = len(generic_first_row["Theoretical Unlabeled Normalized Abundances"]) -1
-#         base_isotope=1-(normed_isotope_data[0,0]*(1-normed_isotope_data[0, nfit]/1.5))**(1/n_value) #approximate base_isotope from M0 @ t=0
-#         base_isotope = np.asarray([base_isotope])
-#         y0=[binom.pmf(ix,n_value,sample_spline.final_spline(0)+base_isotope)[0] for ix in range(n_isos)]
-#         y0=y0/sum(y0)
-# =============================================================================
-
+        
+        #$need to collect the data from their strings and perform the normalization
         normed_isotope_data= []
         for measured_isotopes in empirical_data:
             measured_isotopes = measured_isotopes[1:-1] #$trim terminal parentheses
@@ -378,10 +360,9 @@ class RateCalculator():
         dropped_points = full_length - len(normed_isotope_data)
         
         
-        #$if we filter out too many points
+        #$since we just fitered out theoretically impossible points we need to ensure we still
+        #$have sufficient non-zero points to perform the fit
         if len(non_zero_times) < minimum_nonzero_points:
-            #$return the needed values. Since we're compressing this will be new
-            #$not adding on the the input values
             return_series = RateCalculator._make_return_series(sample_id, 
                                  protein_name, protein_english_name,
                                  sequence_name, "", time_data, unique_times,n_isos,
@@ -390,7 +371,10 @@ class RateCalculator():
                                  "", "", "")
             return return_series
         
-        #$warn if m0 is notstrictly decreasing
+        #$warn if m0 is notstrictly decreasing only functions as a filter if there is only one point per time
+        #$this is to catch fits with a large dip or spike in data that results in a terrible fit.  a noise increase
+        #$should not trigger this. usually only affects one point so multiple points (charge states) at each time are
+        #$resistant to this
         m0_values = normed_isotope_data[:, 0]
         relative_m0_decreasing_allowed_noise = y0[0] *m0_decreasing_allowed_noise
         for r in range(1, len(m0_values)):
@@ -408,10 +392,8 @@ class RateCalculator():
         else:
             m0_constantly_decreasing = True
         
-        #$important functions
         #$these functions used for the fit must be defined here.  They were developed by Christian in the Transtrum lab
-        #$unfortunately they rely on values unique for the sequence(like n_value) we could attempt
-        #$to put in a second defininig function but for now that is more work and testing than nedessary
+       
         def dydt(t,y,k,ibase,nobs): #vector of velocity towards equilibrium
             rho=[binom.pmf(ix,n_value,sample_spline.final_spline(t)) for ix in range(nobs)] #equilibrium distribution for the current deut-level
             rho=np.convolve(ibase,rho)[0:nobs]
@@ -435,7 +417,7 @@ class RateCalculator():
             #$if we don't allow 0 non-zero timepoints we don't need to check here and can assume that there is at least 1 non-zero timepoint 
             #$the fitting equation assumes that a 0 is present.  however 0 is forced by the theoretical value
             #$(like how y= mx has to go through 0).  therefore if 0 is not there we'll add it.  the perfect 0 won't skew the fit, it will prevent
-            #$the first data point from not mattering.
+            #$the first data point from effectively being thrown out
             if 0 not in all_unique_times:
                 fitting_times = np.insert(time_data, 0, 0)
                 fitting_values = [np.asarray(y0)]
@@ -447,8 +429,10 @@ class RateCalculator():
                 fitting_times = time_data
                 fitting_values = normed_isotope_data
                 added_zero = False
+            #$perform the error minimization fit with the ODE functions
             bmin=brent(sse,args=(fitting_times,fitting_values,y0, n_isos),brack=(1e-6,1e-4))
             k_value = bmin
+        #$ if there was a fit warning treat it as an error
         except ODEintWarning:
             return_series = RateCalculator._make_return_series(sample_id, 
                              protein_name, protein_english_name,
@@ -458,19 +442,22 @@ class RateCalculator():
                              m0_constantly_decreasing, "", "")
             return return_series
         
+        #$we will use the mean of the absolute residuals as an error metric so we need to calculate that
+        #$first we need to determine what the fit predicts the points are
         calculated_values_at_each_time = mlevels2(fitting_times, k=k_value, ibase = y0, nobs=n_isos)
         #$same problem as above. can easily use fitting times to avoid, but then need to cut out any zero we addedwhen calculating residuals
         if added_zero:
             delta_rel_isotope_int = normed_isotope_data- calculated_values_at_each_time[1:]
         else:
             delta_rel_isotope_int = normed_isotope_data- calculated_values_at_each_time
+        #$absolute value the error to prevent the error in opposite directions from cancelling out and giving an overly optomistic view
         abs_delta = abs(delta_rel_isotope_int)
         
         #$metric 1 average of the abs value of the errors
         absolute_error_total_mean = np.mean(abs_delta)
         
+        #$approximate fit variation. used as an error metric and is therefore outside of the graphers
         try:
-            #$approximate fit variation. used as an error metric and is therefore outside of the graphers
             h=bmin/7.38906 #h is 2 log-units less than the min
             xval=bmin+[-h,0,h]
             yfit=[0,0,0]
@@ -484,8 +471,9 @@ class RateCalculator():
             approx_variance = "could not find the variance"
         
         
-        #$need to make the graphs now
-        #$start with names and theory
+        #$now that we have the data and fit we need we can start making graphs
+        
+        #$first we need the theoretically perfect lines so we can grph them
         theory_times = np.arange(0, max_sample_time + 1, 0.5)
         predicted_isotope_values = mlevels2(theory_times, k=k_value, ibase=y0, nobs = n_isos)
         
@@ -500,6 +488,8 @@ class RateCalculator():
                        normed_isotope_data, predicted_isotope_values, theory_times,
                        y0,
                        sample_id + "_" + sequence_name, graph_type)
+        #$the user specifies the way they want the error represented or even if they want it presented at all.
+        #$this if takes care of that.
         if error_estimation == "approximate":
             error_xv=np.arange(0,bmin*3,bmin*3/desired_points_for_optimization_graph)
             error_array = parabola(error_xv,parfit[0],parfit[1],parfit[2])
@@ -508,13 +498,14 @@ class RateCalculator():
         elif error_estimation == "exact":
             error_xv=np.arange(0,bmin*3,bmin*3/desired_points_for_optimization_graph)
             legend_name = "real cost of k"
+            #$possible to error out here so catch it if so
             try :
                 error_array=[sse(x,time_data,normed_isotope_data,y0, n_isos) for x in error_xv]
                 graph_optimization_of_error(k_value, error_xv, error_array, graph_name_optimize, sample_id + "_" + sequence_name, legend_name, graph_type)
             except ODEintWarning:
                 error_array = "Error"
         
-        #$using single or two point fits generally need tighter filters
+        #$using single or two point fits generally need tighter filters, so for this evaluation we will employ those filters here
         if number_of_non_zero_fit_points == 1 and absolute_error_total_mean > median_absolute_residuals_cutoff_single_point:
             return_series = RateCalculator._make_return_series(sample_id, 
                                  protein_name, protein_english_name,
@@ -539,13 +530,8 @@ class RateCalculator():
                                  "mean of the absolute residuals is too high", 
                                  m0_constantly_decreasing, absolute_error_total_mean, approx_variance)
             return return_series
-        #$should also have a variance check when we think of it
         
-        
-        
-        
-        #$return the needed values. Since we're compressing this will be new
-        #$not adding on the the input values
+        #$if all is good this is the final row calculated
         return_series = RateCalculator._make_return_series(sample_id, 
                                  protein_name, protein_english_name,
                                  sequence_name, k_value, time_data, 

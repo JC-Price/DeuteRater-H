@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Copyright (c) 2021 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
+Copyright (c) 2016-2020 Bradley Naylor, Michael Porter, Kyle Cutler, Chad Quilling, J.C. Price, and Brigham Young University
 All rights reserved.
 Redistribution and use in source and binary forms,
 with or without modification, are permitted provided
@@ -53,26 +53,9 @@ import utils.extract as due
 from utils.exc import InvalidHeaderError   # noqa: 401
 
 
-# TODO: Code for Validating headers
-# TODO: n_isos to look for should be supplied in the ID file
-#   NOTE: this includes consideration of peaks_included_under_mass_cutoff
-# TODO: chunk on lines not number of partitions
-# TODO: we achieve best efficiency if the number of chunks is a multiple
-#       of the number of processors. Does this need to be implemented?
-
-# TODO: if we trim the IDs, what to do with obs trimmed off?
-# TODO: change the logic to be based off of pandas chunking?
-# TODO: let the extractor handle gzipped mzml files
-# TODO: Speedup with cython
-# TODO: add check to see if file is writeable
-# TODO: only compose dictionary once instead of twice?
-# TODO: How to deal with killing only one instance of extractor
-#       in a batch processing scenario?
-# TODO: pause execution to close file, don't terminate
-
-# NOTE: not all mzmls have contiguous native IDs
 
 
+#$as with all the calculation steps this is a class for consistent calls in the main
 class Extractor:  # TODO name change
     '''Class that handles extracting the relevant data from an mzml file.
 
@@ -125,12 +108,15 @@ class Extractor:  # TODO name change
         self._mzml_native_id_bounds = []
         self.model = pd.DataFrame()
 
+        #$the try except is mostly to catch programming errors in the setup.
+        #$ there isn't a reasonable erro (except the final raise permissionerror but
+        #$ that doesn't need the try except)
         try:
             if settings.recognize_available_cores is True:
                 self._n_processors = mp.cpu_count()
             else:
                 self._n_processors = settings.n_processors
-            #$breaks windows/python interactions if too many cores are used.  very niche application but still relevant
+            #$breaks windows/python interactions if too many cores are used. very niche application but still relevant
             if self._n_processors > 60:
                 self.n_processors = 60
             self._chunk_size = settings.chunk_size
@@ -205,8 +191,8 @@ class Extractor:  # TODO name change
             self.ids['rt'] = self.ids['Precursor Retention Time (sec)']
         self.ids.sort_values(by=['rt'], inplace=True)
         self.ids.reset_index(inplace=True, drop=True)
-        """
-        # self.ids['n_isos'] = 5  # TODO: Temp value, see note at top of files
+
+        #$determines the mass cutoffs for the number of isotopes to extract
         def num_peaks_by_mass(mass):
             if mass < 1500:
                 return 3
@@ -214,10 +200,10 @@ class Extractor:  # TODO name change
                 return 4
             else:
                 return 5
-        """
+
         self.ids['n_isos'] = self.ids['neutromers_to_extract'].astype(
-             np.int8)  # TODO: Temp value, see note at top of files
-        #self.ids['n_isos'] = self.ids['Peptide Theoretical Mass'].apply(num_peaks_by_mass)
+            np.int8)  # TODO: Temp value, see note at top of files
+        # self.ids['n_isos'] = self.ids['Peptide Theoretical Mass'].apply(num_peaks_by_mass)
 
     def _partition_ids(self, trim):
         '''splits the id file
@@ -319,17 +305,19 @@ class Extractor:  # TODO name change
         func = partial(func, str(self.mzml_path))  # pass the mzml
         func = partial(func, self._index_ID_map)  # pass the index mapping
 
+        #$set up and run the multiprocessing
         if settings.debug_level == 0:
             try:
                 results = list(
-                    # tqdm is creates our progress bar
+                    # tqdm creates our progress bar
                     tqdm(
                         self._mp_pool.imap_unordered(
                             func,
                             self._id_chunks
                         ),
                         total=len(self._id_chunks),
-                            desc="Extracting: "
+                        desc="Extracting: ",
+                        leave=False
                     )
                 )
             except Exception as e:
@@ -338,7 +326,7 @@ class Extractor:  # TODO name change
         if settings.debug_level >= 1:
             print('Beginning single-processor extraction.')
             results = []
-            for chunk in self._id_chunks:
+            for chunk in tqdm(self._id_chunks, total=len(self._id_chunks), desc="Extracting: ", leave=False):
                 results.append(func(chunk))
 
         # By filtering out the non-dataframe elements of this list, we exclude
@@ -362,11 +350,10 @@ class Extractor:  # TODO name change
                 left_index=True,
                 right_on='id_index'
             )
-            #self.model.to_csv(self.out_path, sep='\t', index=False)
-
+            
         self._mp_pool.close()
         self._mp_pool.join()
-
+    
 
 def main():
     print('please use the main program interface')

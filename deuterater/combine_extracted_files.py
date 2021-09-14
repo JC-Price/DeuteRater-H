@@ -31,11 +31,17 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
-'''Theoretical Value Preparation
+'''
+After the data is extracted form mzmls we need to prepare it for future analysis
+At this point the user has provided information on which files go with which
+experimental subject and the enrichment, as well as which extracted filtes to consider
 
-This purpose of this module is to calculate the expected theoretical values
-of each identified analyte.
+Therefore this will add the users data on subjects and deuterium enrichment,
+do some basic filtering, calculate a n value based on aa_labeling_sites.tsv
+(in the resources folder) and then merge all into one file
 
+may merge with initial_intensity_calculator, which has a similar basic filtering
+role and occurs immediately afterwards
 '''
 
 import pandas as pd
@@ -54,18 +60,21 @@ import deuteconvert.peptide_utils as peputils
 
 literature_n_name = "literature_n"
 
+
+#$as with all the calculation steps this is a class for consistent calls in the main
 class CombineExtractedFiles():
     def __init__(self, enrichment_path, out_path, settings_path, needed_columns):
         settings.load(settings_path)
         self.settings_path = settings_path
         self.enrichment_path = Path(enrichment_path)
         self.needed_columns = needed_columns
+        #$collect necessary components to determine n_value from amino acids
         aa_label_df = pd.read_csv(settings.aa_labeling_sites_path, sep='\t')
         aa_label_df.set_index('study_type', inplace=True)
         self.aa_labeling_dict = aa_label_df.loc[settings.label_key, ].to_dict()
         
         
-        #$pull in two sub tables from the output table
+        #$pull in two sub tables from the output table. posibilities for .tsv and .csv files
         if self.enrichment_path.suffix == '.tsv':
             self._file_data = pd.read_csv(
                 filepath_or_buffer=str(self.enrichment_path),
@@ -95,6 +104,7 @@ class CombineExtractedFiles():
         self._enrichment_data.dropna(inplace = True, how = "all")
         self._data_dict = self.collect_enrichment_data()
         
+        #$if multiprocessing need to set that up. more than 60 cores causes problems for windows
         if settings.recognize_available_cores is True:
             self._n_processors = mp.cpu_count()
         else:
@@ -112,7 +122,7 @@ class CombineExtractedFiles():
             sep='\t',
             index=False
         )
-        
+    #$read in data from the user
     def collect_enrichment_data(self):
         data_dict = {}
         for subject, subject_df in self._enrichment_data.groupby("Subject ID Enrichment"):
@@ -121,7 +131,8 @@ class CombineExtractedFiles():
             data_dict[subject] = [x_values, y_values]
         return data_dict
             
-
+    #$run the analysis.  this function doesn't have any calculation itself (other than merging results)
+    #$it prepares a function for multiprocessing and thne begins the multiprocessing
     def prepare(self):
         if settings.debug_level == 0:
             args_list = self._file_data.to_records(index=False).tolist()
@@ -164,6 +175,8 @@ class CombineExtractedFiles():
         self._mp_pool.close()
         self._mp_pool.join()
 
+    #$actually runs the relevant calculation. Yes reloading the settings is necessary
+    #$because each process has its own global variables in windows
     @staticmethod
     def _mp_prepare(settings_path, data_dict,  aa_labeling_dict, args):
         settings.load(settings_path)
@@ -171,7 +184,8 @@ class CombineExtractedFiles():
         file_path, time, sample_id = args
         df = pd.read_csv(filepath_or_buffer=file_path, sep='\t')
         df = CombineExtractedFiles._apply_filters(df)
-        
+        #$ if the user or a previous process defined n, that's fine.  but it will be
+        #$needed in the next step so calculate if necessary.
         if literature_n_name not in df.columns:
             if aa_labeling_dict != "":
                 df = df.apply(CombineExtractedFiles._calculate_literature_n, axis =1 , args = (aa_labeling_dict,))
@@ -182,7 +196,7 @@ class CombineExtractedFiles():
             
         return df
     
-    
+    #$calculate the n value based on amino acid sequence
     @staticmethod
     def _calculate_literature_n(row, aa_labeling_dict):
         aa_counts = {}
@@ -194,39 +208,9 @@ class CombineExtractedFiles():
         row[literature_n_name] = literature_n
         return row
 
-    # def _load(self):
-    #     '''Pulls in the relevant data from the model.
-
-    #     Parameters
-    #     ----------
-    #     model : :obj:`pandas.Dataframe`
-    #         The unmodified data model
-
-    #     Returns
-    #     -------
-    #     :obj:`pandas.Dataframe`
-    #         A dataframe containing a copy of the relevant columns
-
-    #     '''
-    #     # TODO: Basic checks like whether the data looks right need done
-    #     if not isinstance(self.model, pd.DataFrame):
-    #         try:
-    #             # TODO: csv/tsv flexibility?
-    #             self.model = pd.read_csv(self.model, sep='\t')
-    #         except Exception as e:
-    #             # TODO: better exception logging
-    #             print(e)
-    #             traceback.print_tb(e.__traceback__)
-    #             raise
-    #     try:
-    #         # TODO: csv/tsv flexibility?
-    #         self._enrichment_df = pd.read_csv(self.enrichment_path, sep='\t')
-    #     except Exception as e:
-    #         # TODO: better exception logging
-    #         print(e)
-    #         traceback.print_tb(e.__traceback__)
-    #         raise
-
+    #$because the extractor may assign different ids to the same peak in different files,
+    #$we need to account for that. if two peaks are too clos in both retention time and mz
+    #$remove both as we can't be sure of the id without ms/ms which we aren't dealing with
     @staticmethod
     def _apply_filters(df):
         '''filters the internal dataframe
@@ -268,12 +252,13 @@ class CombineExtractedFiles():
         too_close = list(set(too_close))
         return df.drop(df.index[too_close])
     
+    #$basic ppm calculator
     @staticmethod
     def _ppm_calculator(target, actual):
         ppm = (target-actual)/target * 1000000
         return abs(ppm)
     
-
+#$can't really use as a main 
 def main():
     print('please use the main program interface')
 

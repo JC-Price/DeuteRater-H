@@ -42,21 +42,13 @@ from pathlib import Path
 from utils.exc import InvalidSettingsWarning
 from utils.exc import InvalidSettingsError  # noqa: 401 
 
-# TODO: How would I dynamically load a different settings file?
-# TODO: ^^^This really should be able to be passed in
-# TODO: should different steps have different settings files?
-# TODO: add reasonable constraints on settings
-# TODO: verbose exception output
-# TODO: add documentation on what this file is for
-# TODO: Shorten variable names where possible
-# TODO: add error checking where applicable
-# TODO: set type annotations and default values
-# TODO: determine good defaults
-# TODO: type annotations for path variable
-# TODO: Discuss this style vs settings class style
-# TODO: Figure out how to reduce redundancy. Like a better singleton
+"""
+this is to load the settings as global variables.  There are three portions
+the first defines the variable type
+the second is the load function which loads the variables
+the third is the freeze function which allows saving the variables
 
-# NOTE: we can use LibYAML c bindings if we need more speed
+"""
 
 location = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 resource_location = os.path.join(location, "resources")

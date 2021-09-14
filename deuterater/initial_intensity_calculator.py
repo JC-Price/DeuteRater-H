@@ -32,10 +32,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
 """
-delta_enrichment_calculator
+as with combine_extracted_files, this provides some basic filtering and 
+calculations that are relatively simple on their own, but need to be done and it's
+easier here than in the main cacluation function
 
-this calls emass and fits the change in abundance and spacing as  a function 
-of enrichment
+The main filters here are n value and sequence length must be sufficiently large
+to be confident we are going to actually see good signal to noise. Finally we must
+use the emass algorightm to calculate the unenriched relative isotopic envelope
+
+may merge into combine_extracted_files.py
 """
 
 
@@ -55,6 +60,8 @@ import deuterater.settings as settings
 max_isos = 5 #$constant based on the n_isos based on the mass (done in the extractor)
 p0_guess = 1 #$seems to work for most fits. if it causes problems we can adjust
 
+
+#$as with all the calculation steps this is a class for consistent calls in the main
 class theoretical_enrichment_calculator(object):
     def __init__(self, prepared_data_path, out_path, settings_path):
         settings.load(settings_path)
@@ -77,7 +84,7 @@ class theoretical_enrichment_calculator(object):
             self._n_processors = mp.cpu_count()
         else:
             self._n_processors = settings.n_processors
-        #$breaks windows/python interactions if too many cores are used.  very niche application but still relevant
+        #$if multiprocessing need to set that up. more than 60 cores causes problems for windows
         if self._n_processors > 60:
             self.n_processors = 60
             
@@ -88,6 +95,8 @@ class theoretical_enrichment_calculator(object):
             index=False
         )    
         
+    #$run the analysis.  this function doesn't have any calculation itself (other than merging, transposing, and setting index of the results)
+    #$it prepares a function for multiprocessing and thne begins the multiprocessing
     def prepare(self):
         unique_sequnces_df = self.data_df.drop_duplicates(subset = ["Sequence"])
     
@@ -112,6 +121,7 @@ class theoretical_enrichment_calculator(object):
         final_df = final_df.set_index("Sequence")
         self.model = pd.merge(self.data_df, final_df, left_on= "Sequence", right_index = True)
         
+    #$actually runs the relevant calculation. 
     @staticmethod
     def _individual_process(df, new_columns, 
                             minimum_n_value,minimum_sequence_length):
@@ -119,8 +129,7 @@ class theoretical_enrichment_calculator(object):
          for row in df.itertuples():
             output_series = pd.Series(index = new_columns, dtype = "object")
             output_series["Sequence"] = row.Sequence
-            #$emass takes longer now as does the graphing. 
-            #$if there is a reason to drop let's do it now
+            #$drop rows we will not use before doing any comples calculations
             if len(row.Sequence) < minimum_sequence_length:
                 variable_list.append(theoretical_enrichment_calculator._error_message_results(
                     f"Sequence is less than {minimum_sequence_length} amino acids",
@@ -141,7 +150,7 @@ class theoretical_enrichment_calculator(object):
          return(pd.concat(variable_list,axis =1))
      
 
-    #$if an error happens it is most efficient to have a easy function
+    #$if an error happens it is most efficient to have a function
     def _error_message_results(error_message, output_series):
         #$don't need to know which names are which or how many columns there are, 
         #$just need python to fill all non-Sequence columns
