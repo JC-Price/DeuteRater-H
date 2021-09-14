@@ -33,12 +33,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 """
 
-for the moment we are going to create two settings menus.  this is for the
-sake of quick creation and separating the values
-Will not use all of the settings, can swap in or out as necessary
-Also since .yaml files can be opened by notepad and are not encrypted
-we will not give the user the option to change the defaults in the gui.
-we'll start with the rate settings as I am more familiar with
+governs the settings menu including:
+    loading current settings
+    saving settings
+    ensuring settings are valid
 """
 
 import os
@@ -51,6 +49,9 @@ from utils.useful_classes import setting_numerical_info, setting_string_info
 
 #location = os.path.dirname(os.path.abspath(sys.executable))
 location = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#$paired settings are settings where it makes no sense if the 2nd value is lower than the first
+#$the maximum rate shouldn't be lowered below the minimum rate for example
 paired_settings = [["minimum_allowed_sequence_rate","maximum_allowed_sequence_rate"], 
                    ["lowest_allowed_norm_isotope", "highest_allowed_norm_isotope"]
                    ]
@@ -66,6 +67,7 @@ class Rate_Setting_Menu(QtWidgets.QDialog, loaded_ui):
         #$this is needed to slim things down a bit
         self.setWindowTitle("Rate Settings Menu")
         self.setupUi(self)
+        #$initial set up of the different settings.
         self.all_settings=[
             setting_string_info(self.recognize_available_cores, "recognize_available_cores",
                                  settings.recognize_available_cores, True),
@@ -148,7 +150,8 @@ class Rate_Setting_Menu(QtWidgets.QDialog, loaded_ui):
         self.LoadButton.clicked.connect(self.load_settings)
         self.SaveButton.clicked.connect(self.save_settings)
         self.ExitButton.clicked.connect(self.close)
-        
+    
+    #$save teh current settings
     def save_settings(self):
         #$we need to provide the values that are not altred for the dump
         save_value_dict = Rate_Setting_Menu._get_filters()
@@ -164,13 +167,15 @@ class Rate_Setting_Menu(QtWidgets.QDialog, loaded_ui):
             
         settings.freeze(self.current_setting_file, save_value_dict)
         return True
-        
+       
+    #$if the user wants to exit we can check if something has changed so we can give tham a chance to save
     def check_for_changes(self):
         for setting in self.all_settings:
             if not setting.compare_value():
                 return False
         return True
 
+    #$load a previous saved settings file
     def load_settings(self):
         response = QtWidgets.QMessageBox.question(self, "Question", "Would you like to load a already existing settings file? This will overwrite all current settings.",
                                                   QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)

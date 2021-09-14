@@ -31,12 +31,10 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 """
-The point of this is to hold the time and enrichment table
-any adjustments to the table should be made here or in the qt designer
+this governs the table the user fills in to provide the time and subject associated with a given mzml file
 """
 import os
 import csv
-import pandas as pd
 
 from pathlib import Path
 
@@ -119,6 +117,7 @@ class TimeWindow(QtWidgets.QDialog, loaded_ui):
             #    writer.writerow(row)
         self.close()
      
+    #$check for text errors, like blanks
     @staticmethod    
     def _basic_string_check(text_value, column_name, row_number):
         append_to_error = " at \"{}\" column, row {}. Correct to proceed.".format(
@@ -128,12 +127,11 @@ class TimeWindow(QtWidgets.QDialog, loaded_ui):
         else: 
             return text_value, False
     
-
+#$main for testing
 if __name__ == '__main__':
-    #$needed for windows multiprocessing which will happen at some point
     import sys
     app = QtWidgets.QApplication(sys.argv)
-    output_file = "C:\\Software\\Testing\\DeuteRater_Initial\\test_table_out.csv"
+    output_file = ""
     gui_object = TimeWindow(None, ["A", "B", "C"], output_file)
     gui_object.show()
     app.exec_()

@@ -32,15 +32,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 """
 
-this will have functions needed for qdialog windows and the set up table
-this could be done with inheritance but trying to fiddle with inheriting
-from different uic files, making a general class and so on is much more
-work and time than just a list of functions we can just call
+this has various functions for tables in guis, such as making the tables,
+finding which cells are highlighted and keyboard shortcuts
 
 """
 
 from PyQt5 import QtWidgets, QtCore
 
+#$ sets up a table, including making some cells uneditable to prevent issues
 def set_up_table(table_object, row_names, repeats = 1, rows_are_paths = False):
     table_object.setRowCount(len(row_names)*repeats)
     current_row = 0
@@ -80,12 +79,14 @@ def HighlightedCells(table_object, all_data = False, no_names = True):
     else:
         return rows[0], columns[0]
 
+#$clears highlighted cells of their contents
 def Clear_Contents(table_object):
     selected_rows, selected_columns = HighlightedCells(table_object, True)
     for r in selected_rows:
         for c in selected_columns:
             table_object.item(r,c).setText("")
-            
+
+#$copy highlighted cell values onto the clipboard
 def Copy_to_Clipboard(table_object):
         rows, columns = HighlightedCells(table_object, 
                                          all_data = True, no_names = False)
@@ -100,6 +101,7 @@ def Copy_to_Clipboard(table_object):
         #$ trim off the final new line and get it on the clipboard
         clipboard.setText(string_for_clipboard[:-1]) 
     
+#$paste clipboard into the table. pastes nothng if the thing to be pasted is too large to fit
 def Paste(table_object):
     start_row, start_column = HighlightedCells(table_object, no_names = False)
     #$ do not paste over the first column

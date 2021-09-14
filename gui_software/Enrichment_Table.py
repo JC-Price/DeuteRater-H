@@ -30,13 +30,18 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
+"""
+this governs the table the user fills in to provide the enrichment for a given subject
+
+"""
+
 import os
 import pandas as pd
 
 from PyQt5 import uic, QtWidgets, QtCore, QtGui
 
 import gui_software.general_table_functions as gtf
-#import general_table_functions as gtf
+
 
 #location = os.path.dirname(os.path.abspath(sys.executable))
 location = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,7 +70,6 @@ class EnrichmentWindow (QtWidgets.QDialog, loaded_ui):
         self.min_allowed_times = min_allowed_times
         temp_df = pd.read_csv(outfile, sep = "\t")
         self.subject_ids = list(temp_df[current_columns[0]].unique())
-        #self.set_up_table(subject_ids, starting_num_timepoints)
         gtf.set_up_table(self.EnrichmentTable, self.subject_ids, 
                          starting_num_timepoints)
         
@@ -80,8 +84,8 @@ class EnrichmentWindow (QtWidgets.QDialog, loaded_ui):
         self.UpdateTableButton.clicked.connect(self.update_table_size)
         self.setWindowTitle("Fill in Enrichmet Values")
         
-        #$make some easy shortcuts. setting up undo and redo are the hardest
-        #$conly do backspace, del, copy and paste for right now
+        #$make some easy table keyboard shortcuts. 
+        #$only do backspace, del, copy and paste for right now
         QtWidgets.QShortcut(QtGui.QKeySequence('Backspace'),
                             self).activated.connect(lambda: gtf.Clear_Contents(
                                 self.EnrichmentTable))
@@ -95,7 +99,7 @@ class EnrichmentWindow (QtWidgets.QDialog, loaded_ui):
                             self).activated.connect(lambda:gtf.Paste(
                                 self.EnrichmentTable))
 
-    #$functional
+    #$allows increasing or decreasing table size
     def update_table_size(self):
         desired_value = int(self.enrichments_for_subject.value())
         #$no point in doing anything if not adding or deleting
@@ -129,9 +133,10 @@ class EnrichmentWindow (QtWidgets.QDialog, loaded_ui):
                                         QtWidgets.QTableWidgetItem(""))
         self.current_timepoints = desired_value
     
-   
+    #$check that we may save and continue.  if not complain to the user and give
+    #$don't continue so they can correct the problem
     def check_and_save (self):
-        #$don't have to check the ids, those are out of the user's control
+        #$don't have to check the ids, those are out of the user's control in this table
         class_dict = {}
         for r in range(self.EnrichmentTable.rowCount()):
             #$first column is not editable so can be ignored
@@ -207,8 +212,8 @@ class EnrichmentWindow (QtWidgets.QDialog, loaded_ui):
         event.accept()
         
    
-#$we can shift this to useful classes or general_table_functions later, but
-#$for now put it here
+#$we need to do some error checking here.  specifically we need a certain number of
+#$enrichment values and unique times to actually fit later.
 class subject(object):
     def __init__(self, name, time, enrichment):
         self.name = name
@@ -228,12 +233,12 @@ class subject(object):
             return "Subject {} has no enrichment.".format(self.name)
         return 1
 
-
+#$test the main
 if __name__ == '__main__':
     #$needed for windows multiprocessing which will happen at some point
     import sys
     app = QtWidgets.QApplication(sys.argv)
-    output_file = "C:\\Software\\Testing\\Deuterater-H_test\\test_table_out.tsv"
+    output_file = ""
     gui_object = EnrichmentWindow(None, ["A", "B", "C"], 3, 5, output_file)
     gui_object.show()
     app.exec_()
