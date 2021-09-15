@@ -41,12 +41,6 @@ class BaseConverter(ABC):
     def __init__(self):
         super().__init__()
 
-
-    @classmethod
-    @abstractmethod
-    def load_files(cls, *args):
-        return NotImplementedError
-
     @classmethod
     @abstractmethod
     def convert(cls):
