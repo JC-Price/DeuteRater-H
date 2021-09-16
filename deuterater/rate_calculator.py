@@ -49,6 +49,8 @@ from scipy.optimize import brent
 from scipy.integrate.odepack import ODEintWarning
 from scipy.optimize import curve_fit
 import scipy.interpolate as si
+from collections import defaultdict
+
 
 
 from pathlib import Path
@@ -236,7 +238,8 @@ class RateCalculator():
                               median_absolute_residuals_cutoff_two_points = settings.median_absolute_residuals_cutoff_two_points,
                               median_absolute_residuals_cutoff_general = settings.median_absolute_residuals_cutoff_general,
                               desired_points_for_optimization_graph = settings.desired_points_for_optimization_graph,
-                              max_sample_time = max_sample_time
+                              max_sample_time = max_sample_time,
+                              graph_type = settings.graph_output_format
                               )
             for g in groupby_object:
                 results_list.append(mp_func(g))
@@ -321,7 +324,7 @@ class RateCalculator():
         
         #$confirm the data is good before complex calculations begin
         #$ currently confirms that there are as many non-zero timepoints as the user specified.
-        unique_times = set(time_data)
+        unique_times = sorted(list(set(time_data)))
         non_zero_times = [t for t in unique_times if t!=0.0]
         if len(non_zero_times) < minimum_nonzero_points:
             return_series = RateCalculator._make_return_series(sample_id, 
@@ -356,7 +359,10 @@ class RateCalculator():
         
         normed_isotope_data = normed_isotope_data[row_mask]
         time_data = time_data[row_mask]
-        non_zero_times = [t for t in set(time_data) if t!=0.0]
+        #$recalculate unique_times now that we may have dropped some of them
+        unique_times = sorted(list(set(time_data)))
+        
+        non_zero_times = [t for t in unique_times if t!=0.0]
         dropped_points = full_length - len(normed_isotope_data)
         
         
@@ -374,13 +380,14 @@ class RateCalculator():
         #$warn if m0 is notstrictly decreasing only functions as a filter if there is only one point per time
         #$this is to catch fits with a large dip or spike in data that results in a terrible fit.  a noise increase
         #$should not trigger this. usually only affects one point so multiple points (charge states) at each time are
-        #$resistant to this
+        #$resistant to this so that reports an error but will not drop
+        
+        #$unfortunately the possibility for multiple timepoints complicates the analysis since order the points are analyzed
         m0_values = normed_isotope_data[:, 0]
         relative_m0_decreasing_allowed_noise = y0[0] *m0_decreasing_allowed_noise
-        for r in range(1, len(m0_values)):
-            if m0_values[r] > (m0_values[r-1] + relative_m0_decreasing_allowed_noise):
-                m0_constantly_decreasing = False
-                if len(unique_times) == len(time_data):
+        if len(unique_times) == len(time_data):
+            for r in range(1, len(m0_values)):
+                if m0_values[r] > (m0_values[r-1] + relative_m0_decreasing_allowed_noise):
                     return_series = RateCalculator._make_return_series(sample_id, 
                                  protein_name, protein_english_name,
                                  sequence_name, "", time_data, unique_times,n_isos,
@@ -388,9 +395,18 @@ class RateCalculator():
                                  "m0 is not constantly decreasing when there is only one point per time",
                                  "", "", "")
                     return return_series
-                break
+            else:
+                m0_constantly_decreasing = True
         else:
-            m0_constantly_decreasing = True
+            needed_dict = defaultdict(list)
+            for k,v in zip(time_data, m0_values):
+                needed_dict[k].append(v)
+            for t in range(1, len(unique_times)):
+                if max(needed_dict[unique_times[t]]) > (min(needed_dict[unique_times[t-1]]) + relative_m0_decreasing_allowed_noise):
+                    m0_constantly_decreasing = False
+                    break
+            else:
+                m0_constantly_decreasing = True
         
         #$these functions used for the fit must be defined here.  They were developed by Christian in the Transtrum lab
        
@@ -409,7 +425,6 @@ class RateCalculator():
         def sse(k,t,y,ibase,nobs):#sum squared error
             return sum((mlevels2(t,k,ibase,nobs) - y).flatten()**2)
         
-        all_unique_times = list(set(time_data))
         number_of_non_zero_fit_points = len([t for t in time_data if t != 0 ])
         #$the 0 in 0:n_isos used to be 1.  unsure why as it was cutting data.  this may have been for removal of 0 in testing
         #$will keep the 0:n_isos form as a legacy of this to aid in potential troubleshooting
@@ -418,7 +433,7 @@ class RateCalculator():
             #$the fitting equation assumes that a 0 is present.  however 0 is forced by the theoretical value
             #$(like how y= mx has to go through 0).  therefore if 0 is not there we'll add it.  the perfect 0 won't skew the fit, it will prevent
             #$the first data point from effectively being thrown out
-            if 0 not in all_unique_times:
+            if 0 not in unique_times:
                 fitting_times = np.insert(time_data, 0, 0)
                 fitting_values = [np.asarray(y0)]
                 for l in range(len(normed_isotope_data)):
