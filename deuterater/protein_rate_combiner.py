@@ -156,7 +156,7 @@ class Peptides_to_Proteins(object):
         
     #$if the user doesn't want the number and types of errors they can be left out for ease of viewing
     def trim_verbose_data(self):
-        needed_columns = ["Subject ID", "Protein ID", "Num Sequences Used", f"{settings.protein_combination_method} Rate", "Rate Std Dev"]
+        needed_columns = ["Subject ID", "Protein ID", "Protein Name", "Num Sequences Used", f"{settings.protein_combination_method} Rate", "Rate Std Dev"]
         self.final_rates_model = self.final_rates_model[needed_columns] 
        
     #$ the actual function to do the caluclation
