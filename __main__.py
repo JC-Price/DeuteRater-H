@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import os
 import sys
 import multiprocessing as mp
+import numpy as np
 import csv
 import pandas as pd
 from tqdm import tqdm
@@ -46,6 +47,7 @@ from shutil import copyfile, rmtree
 from deuteconvert.peaks85 import Peaks85
 from deuteconvert.peaksXplus import PeaksXplus
 from deuteconvert.peaksXpro import PeaksXpro
+import deuteconvert.peptide_utils as peputils
 from deuterater.extractor import Extractor
 from gui_software.Time_Table import TimeWindow
 from gui_software.Enrichment_Table import EnrichmentWindow
@@ -58,6 +60,7 @@ from utils.chromatography_division import ChromatographyDivider
 from utils.useful_classes import deuterater_step, deuteconvert_peaks_required_headers
 import deuterater.settings as settings
 from gui_software.Rate_Settings import Rate_Setting_Menu
+import deuteconvert.settings as converter_settings
 
 #location = os.path.dirname(os.path.abspath(sys.executable))
 location = os.path.dirname(os.path.abspath(__file__))
@@ -140,11 +143,19 @@ convert_needed_headers = {
             'RT', 'm/z', 'z', 'Accession']
         )
     }
+
+#$columns for the extractor that absolutely need data (others can autofill or are just for user information)
+#$most of the columns actually aren't necessary to get a result but will either prevent any extraction from happening (no data output file)
+#$or will likely cause an error later in the process.
+required_data_extractor_data = ["Sequence", "Protein ID", "Precursor Retention Time (sec)", "Precursor m/z", "Identification Charge"]
+autofill_columns = ["Peptide Theoretical Mass", "cf", "literature_n"]
+#$need to autofill: Peptide Theoretical Mass, cf? 	neutromers_to_extract, literature_n
+
+
 #$default converter option
 default_converter = "Template"
 #$ get the header we want if using Peaks
-converter_header = PeaksXplus.correct_header_order
-
+template_header = [PeaksXpro.correct_header_names[x] for x in PeaksXpro.correct_header_order]
 
 #$prepare the gui
 main_file_ui_location = os.path.join(location, "ui_files", "Main_Menu.ui")
@@ -257,7 +268,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 if guide_file_type != "Template":
                     converter.write(save_file)
                 else:
-                    df = pd.DataFrame(columns =converter_header )
+                    df = pd.DataFrame(columns =template_header )
                     df.to_csv(save_file, sep=',', index=False)
                 break
             except IOError:
@@ -375,6 +386,9 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 infile_is_good = self.check_input(step_object_dict[analysis_step],
                                                                    id_file)
                 if not infile_is_good:  return
+                #$infile_is_good is just a check for 
+                data_is_good = self.check_extractor_input(id_file,required_data_extractor_data, autofill_columns)
+                if not data_is_good:  return
                 
                 mzml_files = self.collect_multiple_files("Centroided Data",
                                 analysis_step, "mzML (*.mzML)")
@@ -794,8 +808,94 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
             if os.path.isdir(folder):
                 rmtree(folder)
             os.makedirs(folder)
-            
     
+    #$since the users will mainly be filling in a template we need to check the input.  we need to check that the appropriate columns have data in them
+    #$if there is something that we can autofill, we'll do that in the extractor itself since that is already reading in the file
+    def check_extractor_input(self, filename, needed_columns, autofill_columns):
+        df = pd.read_csv(filename)
+        error_message = "Column \"{}\" has blank cells within it.  Please correct and try again."
+        for n in needed_columns:
+            #$ blanks will be true, so this is number of blanks
+            #$works for text columns
+            if sum(df[n] == "") > 0:
+                QtWidgets.QMessageBox.information(self, "Error", error_message.format(n))
+                return False
+            #$numerical columns have nan's not blanks
+            elif sum(df[n].isnull()) > 0:
+                QtWidgets.QMessageBox.information(self, "Error", error_message.format(n))
+                return False
+        
+        for a in autofill_columns:
+            if sum(df[a].isnull()) > 0 or sum(df[a] == "") > 0:
+                perform_autofill = True
+                bad_column = a
+                break
+        else:
+            perform_autofill = False
+        if perform_autofill:
+            result = self.autofill(df, filename, bad_column)
+            if not result:
+                return result
+            
+        return True
+    
+    #$this is based on _interpret_aa_sequences from peaksXPro
+    #$if the user has not provided a chemical formula, literature n value and theoretical neutral mass
+    #$for now we'll just assume that if any are blank we should just autofill everything
+    def autofill(self, df, guide_file_location, bad_column):
+        converter_settings.load(guide_settings_file)
+        aa_comp_df = pd.read_csv(converter_settings.aa_elem_comp_path, sep='\t')
+        aa_comp_df.set_index('amino_acid', inplace=True)
+
+        aa_label_df = pd.read_csv(converter_settings.aa_label_path, sep='\t')
+        aa_label_df.set_index('study_type', inplace=True)
+        # TODO: Find out where to store settings, then decide which 'studytype'
+        #       to use as default.
+        aa_labeling_dict = aa_label_df.loc[converter_settings.study_type, ].to_dict()
+
+        elem_df = pd.read_csv(converter_settings.elems_path, sep='\t')
+        # This is necessary if we have all of the different isotopes in the tsv
+        element_index_mask = [
+            0,  # Hydrogen
+            10,  # Carbon-12
+            13,  # Nitrogen-14
+            15,  # Oxygen-16,
+            30, # Phosphorous
+            31  # Sulfer-32
+        ]
+        elem_df = elem_df.iloc[element_index_mask]
+        elem_df.set_index('isotope_letter', inplace=True)
+        #$if dtypes are wrong we can either error out or have improper values, so we'll force it
+        df['cf'] = df['cf'].astype(str) 
+        df['Peptide Theoretical Mass'] = df['Peptide Theoretical Mass'].astype(float)
+        df['literature_n'] = df['literature_n'].astype(float)
+        for row in df.itertuples():
+            i = row.Index
+            aa_counts = {}
+            for aa in row.Sequence:
+                if aa not in aa_counts.keys():
+                    aa_counts[aa] = 0
+                aa_counts[aa] += 1
+            elem_dict = peputils.calc_cf(aa_counts, aa_comp_df)
+            theoretical_mass = peputils.calc_theory_mass(elem_dict, elem_df)
+            literature_n = peputils.calc_add_n(aa_counts, aa_labeling_dict)
+            df.at[i, 'cf'] = ''.join(
+                k + str(v) for k, v in elem_dict.items() if v > 0
+            )
+            df.at[i, 'Peptide Theoretical Mass'] = theoretical_mass
+            df.at[i, 'literature_n'] = literature_n
+        #$now we need to srite out.  since we only needed read permissions elsewhere we may have a problem.
+        #$but it does ensure we need to pass a df around.
+        try:
+            df.to_csv(guide_file_location, index = False)
+            return True
+        except IOError:
+                QtWidgets.QMessageBox.information(self, "Error", 
+                    ("Column \"{}\" in file \"{}\" needed to be filled in by DeuteRater-H."
+                     " This file is open in another program or DeuteRater-H does not have "
+                     "write permission to this location. Please either fill in the column or close "
+                     "the file and try again.".format(bad_column, guide_file_location)))
+                return False
 #$since we have to load settings in each file, and need a way to adjust
 #$settings, we'll 
 def make_temp_file(filename, new_filename):
