@@ -53,7 +53,7 @@ import utils.extract as due
 from utils.exc import InvalidHeaderError   # noqa: 401
 
 
-
+PROTON = 1.007276467
 
 #$as with all the calculation steps this is a class for consistent calls in the main
 class Extractor:  # TODO name change
@@ -200,7 +200,15 @@ class Extractor:  # TODO name change
                 return 4
             else:
                 return 5
-
+        
+        #$there are some things the input we need to autofill if the user does not have them
+        #$we'll do this with neutromers_to_extract only.  we'll deal with the rest elsewhere
+        def autofill(row):
+            if np.isnan(row['neutromers_to_extract']) or row['neutromers_to_extract'] == "":
+                row['neutromers_to_extract'] = num_peaks_by_mass(row["Peptide Theoretical Mass"])
+            return row
+        
+        self.ids = self.ids.apply(autofill, axis = 1)
         self.ids['n_isos'] = self.ids['neutromers_to_extract'].astype(
             np.int8)  # TODO: Temp value, see note at top of files
         # self.ids['n_isos'] = self.ids['Peptide Theoretical Mass'].apply(num_peaks_by_mass)
