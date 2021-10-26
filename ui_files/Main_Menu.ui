@@ -181,7 +181,7 @@
       </item>
       <item row="3" column="0">
        <property name="text">
-        <string>Calculate Delta by Enrichment</string>
+        <string>Calculate Baseline Enrichment</string>
        </property>
        <property name="checkState">
         <enum>Checked</enum>

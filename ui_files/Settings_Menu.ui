@@ -6,54 +6,88 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>790</width>
-    <height>601</height>
+    <width>785</width>
+    <height>545</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <widget class="QLabel" name="label_5">
+   <item row="19" column="1">
+    <widget class="QSpinBox" name="min_allowed_n_value">
+     <property name="minimum">
+      <number>1</number>
+     </property>
+     <property name="maximum">
+      <number>99</number>
+     </property>
+    </widget>
+   </item>
+   <item row="19" column="0">
+    <widget class="QLabel" name="label_25">
+     <property name="text">
+      <string>Minimum Allowed N Value</string>
+     </property>
+    </widget>
+   </item>
+   <item row="18" column="1">
+    <widget class="QSpinBox" name="min_AA_length">
+     <property name="minimum">
+      <number>1</number>
+     </property>
+     <property name="maximum">
+      <number>99</number>
+     </property>
+    </widget>
+   </item>
+   <item row="17" column="2">
+    <widget class="QLabel" name="label_43">
+     <property name="text">
+      <string>Verbose Output</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="16" column="1">
+    <widget class="QDoubleSpinBox" name="rt_prox_filter"/>
+   </item>
+   <item row="15" column="2">
+    <widget class="QLabel" name="label_32">
+     <property name="text">
+      <string>Minimum number of peptide sequences per protein rate</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="15" column="3">
+    <widget class="QSpinBox" name="minimum_sequences_to_combine_for_protein_rate"/>
+   </item>
+   <item row="17" column="0">
+    <widget class="QLabel" name="label_7">
      <property name="font">
       <font>
        <pointsize>12</pointsize>
       </font>
      </property>
      <property name="text">
-      <string>General</string>
+      <string>Calculate Baseline Enrichment</string>
      </property>
     </widget>
    </item>
-   <item row="0" column="4">
-    <widget class="QLabel" name="label_4">
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
+   <item row="16" column="0">
+    <widget class="QLabel" name="label_31">
      <property name="text">
-      <string>Rate Calculation</string>
+      <string>Retention Time proximity filter (min)</string>
      </property>
     </widget>
    </item>
-   <item row="0" column="6">
-    <widget class="QPushButton" name="SaveButton">
-     <property name="text">
-      <string>Save Settings</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="label_9">
-     <property name="text">
-      <string>Recognize available cores</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="2">
-    <widget class="QComboBox" name="recognize_available_cores">
+   <item row="17" column="3">
+    <widget class="QComboBox" name="verbose_output">
      <item>
       <property name="text">
        <string>Yes</string>
@@ -66,187 +100,61 @@
      </item>
     </widget>
    </item>
-   <item row="1" column="4">
-    <widget class="QLabel" name="label_26">
+   <item row="18" column="0">
+    <widget class="QLabel" name="label_24">
      <property name="text">
-      <string>Minimum Non-zero points (rate)</string>
+      <string>Minimum Peptide Length</string>
+     </property>
+    </widget>
+   </item>
+   <item row="16" column="2">
+    <widget class="QLabel" name="label_42">
+     <property name="text">
+      <string>How to combine sequences to protein</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
      </property>
     </widget>
    </item>
-   <item row="1" column="5">
-    <widget class="QSpinBox" name="minimum_nonzero_points_rate">
-     <property name="minimum">
-      <number>1</number>
-     </property>
+   <item row="16" column="3">
+    <widget class="QComboBox" name="protein_roll_up_type">
+     <item>
+      <property name="text">
+       <string>Average</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Median</string>
+      </property>
+     </item>
     </widget>
    </item>
-   <item row="1" column="6">
-    <widget class="QPushButton" name="LoadButton">
-     <property name="text">
-      <string>Load Settings</string>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="label_18">
-     <property name="text">
-      <string>Default Cores to Use</string>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="2">
-    <widget class="QSpinBox" name="default_cores">
+   <item row="15" column="1">
+    <widget class="QSpinBox" name="mz_prox_filter">
      <property name="minimum">
       <number>1</number>
      </property>
      <property name="maximum">
-      <number>60</number>
+      <number>1000</number>
+     </property>
+     <property name="singleStep">
+      <number>5</number>
+     </property>
+     <property name="value">
+      <number>100</number>
      </property>
     </widget>
    </item>
-   <item row="2" column="4">
-    <widget class="QLabel" name="label_29">
+   <item row="15" column="0">
+    <widget class="QLabel" name="label_27">
      <property name="text">
-      <string>Minimum allowed rate</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
+      <string>mz proximity filter (ppm)</string>
      </property>
     </widget>
    </item>
-   <item row="2" column="5">
-    <widget class="QDoubleSpinBox" name="min_allowed_rate"/>
-   </item>
-   <item row="2" column="6">
-    <widget class="QPushButton" name="ExitButton">
-     <property name="text">
-      <string>Exit</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="0">
-    <widget class="QLabel" name="label_8">
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-     <property name="text">
-      <string>Enrichment Calculation</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="4">
-    <widget class="QLabel" name="label_30">
-     <property name="text">
-      <string>Maximum allowed rate</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="5">
-    <widget class="QDoubleSpinBox" name="max_allowed_rate"/>
-   </item>
-   <item row="4" column="0" colspan="2">
-    <widget class="QLabel" name="label_28">
-     <property name="text">
-      <string>Minimum timepoints (enrichment)</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="2">
-    <widget class="QSpinBox" name="min_allowed_timepoints_enrichment">
-     <property name="minimum">
-      <number>4</number>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="4">
-    <widget class="QLabel" name="label_40">
-     <property name="text">
-      <string>Error Graph Option</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="5">
-    <widget class="QComboBox" name="error_graph_option">
-     <item>
-      <property name="text">
-       <string>none</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>approximate</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>exact</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="5" column="0">
-    <widget class="QLabel" name="label_37">
-     <property name="text">
-      <string>Default Enrichment Table Times</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="2">
-    <widget class="QSpinBox" name="starting_enrichment_table_timepoints"/>
-   </item>
-   <item row="5" column="4">
-    <widget class="QLabel" name="label_32">
-     <property name="text">
-      <string>Minimum number of peptide sequences per protein rate</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="5">
-    <widget class="QSpinBox" name="minimum_sequences_to_combine_for_protein_rate"/>
-   </item>
-   <item row="6" column="0">
-    <widget class="QLabel" name="label_6">
-     <property name="font">
-      <font>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-     <property name="text">
-      <string>Extract</string>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="4">
-    <widget class="QLabel" name="label_33">
-     <property name="text">
-      <string>lowest allowed isotope value (fraction of unlabeled)</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="5">
+   <item row="8" column="3">
     <widget class="QDoubleSpinBox" name="lowest_allowed_norm_isotope">
      <property name="minimum">
       <double>-1.000000000000000</double>
@@ -259,23 +167,28 @@
      </property>
     </widget>
    </item>
-   <item row="7" column="0">
-    <widget class="QLabel" name="label_19">
-     <property name="text">
-      <string>Retention Time Unit</string>
+   <item row="9" column="1">
+    <widget class="QSpinBox" name="ppm_error">
+     <property name="maximum">
+      <number>100</number>
      </property>
     </widget>
    </item>
-   <item row="7" column="2">
-    <widget class="QComboBox" name="rt_unit">
+   <item row="10" column="1">
+    <widget class="QComboBox" name="use_chromatography_division">
      <item>
       <property name="text">
-       <string>sec</string>
+       <string>No</string>
       </property>
      </item>
      <item>
       <property name="text">
-       <string>min</string>
+       <string>Intrafile</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Interfile</string>
       </property>
      </item>
     </widget>
@@ -288,28 +201,12 @@
     </widget>
    </item>
    <item row="8" column="2">
-    <widget class="QDoubleSpinBox" name="time_window"/>
-   </item>
-   <item row="8" column="4">
-    <widget class="QLabel" name="label_34">
+    <widget class="QLabel" name="label_33">
      <property name="text">
-      <string>highest allowed isotope value  (fraction of unlabeled)</string>
+      <string>lowest allowed isotope value (fraction of unlabeled)</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="8" column="5">
-    <widget class="QDoubleSpinBox" name="highest_allowed_norm_isotope">
-     <property name="minimum">
-      <double>0.000000000000000</double>
-     </property>
-     <property name="maximum">
-      <double>2.000000000000000</double>
-     </property>
-     <property name="singleStep">
-      <double>0.010000000000000</double>
      </property>
     </widget>
    </item>
@@ -320,30 +217,26 @@
      </property>
     </widget>
    </item>
-   <item row="9" column="2">
-    <widget class="QSpinBox" name="ppm_error">
-     <property name="maximum">
-      <number>100</number>
-     </property>
-    </widget>
+   <item row="8" column="1">
+    <widget class="QDoubleSpinBox" name="time_window"/>
    </item>
-   <item row="9" column="4">
-    <widget class="QLabel" name="label_35">
+   <item row="9" column="2">
+    <widget class="QLabel" name="label_34">
      <property name="text">
-      <string>M0 decreasing allowed noise  (fraction of unlabeled M0)</string>
+      <string>highest allowed isotope value  (fraction of unlabeled)</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
      </property>
     </widget>
    </item>
-   <item row="9" column="5">
-    <widget class="QDoubleSpinBox" name="m0_decreasing_allowed_noise">
+   <item row="9" column="3">
+    <widget class="QDoubleSpinBox" name="highest_allowed_norm_isotope">
      <property name="minimum">
       <double>0.000000000000000</double>
      </property>
      <property name="maximum">
-      <double>0.500000000000000</double>
+      <double>2.000000000000000</double>
      </property>
      <property name="singleStep">
       <double>0.010000000000000</double>
@@ -366,26 +259,65 @@
      </property>
     </widget>
    </item>
-   <item row="10" column="2">
-    <widget class="QComboBox" name="use_chromatography_division">
-     <item>
-      <property name="text">
-       <string>No</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>Intrafile</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>Interfile</string>
-      </property>
-     </item>
+   <item row="0" column="0">
+    <widget class="QLabel" name="label_5">
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>General</string>
+     </property>
     </widget>
    </item>
-   <item row="10" column="4">
+   <item row="0" column="4" rowspan="2">
+    <widget class="QPushButton" name="SaveButton">
+     <property name="text">
+      <string>Save Settings</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="4">
+    <widget class="QPushButton" name="LoadButton">
+     <property name="text">
+      <string>Load Settings</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="2">
+    <widget class="QLabel" name="label_4">
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Rate Calculation</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="4">
+    <widget class="QPushButton" name="ExitButton">
+     <property name="text">
+      <string>Exit</string>
+     </property>
+    </widget>
+   </item>
+   <item row="10" column="3">
+    <widget class="QDoubleSpinBox" name="m0_decreasing_allowed_noise">
+     <property name="minimum">
+      <double>0.000000000000000</double>
+     </property>
+     <property name="maximum">
+      <double>0.500000000000000</double>
+     </property>
+     <property name="singleStep">
+      <double>0.010000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="2">
     <widget class="QLabel" name="label_36">
      <property name="text">
       <string>median absolute residuals cutoff single point</string>
@@ -395,14 +327,100 @@
      </property>
     </widget>
    </item>
-   <item row="10" column="5">
+   <item row="12" column="0">
+    <widget class="QLabel" name="label_28">
+     <property name="text">
+      <string>Minimum timepoints (enrichment)</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="12" column="2">
+    <widget class="QLabel" name="label_38">
+     <property name="text">
+      <string>median absolute residuals cutoff two points</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="10" column="2">
+    <widget class="QLabel" name="label_35">
+     <property name="text">
+      <string>M0 decreasing allowed noise  (fraction of unlabeled M0)</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="0">
+    <widget class="QLabel" name="label_8">
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Enrichment Table</string>
+     </property>
+    </widget>
+   </item>
+   <item row="12" column="1">
+    <widget class="QSpinBox" name="min_allowed_timepoints_enrichment">
+     <property name="minimum">
+      <number>4</number>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="2">
+    <widget class="QLabel" name="label_39">
+     <property name="text">
+      <string>median absolute residuals cutoff general</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="0">
+    <widget class="QLabel" name="label_37">
+     <property name="text">
+      <string>Default Enrichment Table Times</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="3">
     <widget class="QDoubleSpinBox" name="median_absolute_residuals_cutoff_value_single_point">
      <property name="decimals">
       <number>3</number>
      </property>
     </widget>
    </item>
-   <item row="11" column="0">
+   <item row="13" column="3">
+    <widget class="QDoubleSpinBox" name="median_absolute_residuals_cutoff_value_general">
+     <property name="decimals">
+      <number>3</number>
+     </property>
+    </widget>
+   </item>
+   <item row="12" column="3">
+    <widget class="QDoubleSpinBox" name="median_absolute_residuals_cutoff_value_two_points">
+     <property name="decimals">
+      <number>3</number>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="1">
+    <widget class="QSpinBox" name="starting_enrichment_table_timepoints"/>
+   </item>
+   <item row="14" column="0">
     <widget class="QLabel" name="label_10">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
@@ -420,55 +438,150 @@
      </property>
     </widget>
    </item>
-   <item row="11" column="4">
-    <widget class="QLabel" name="label_38">
+   <item row="14" column="2" colspan="2">
+    <widget class="QLabel" name="label_11">
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
      <property name="text">
-      <string>median absolute residuals cutoff two points</string>
+      <string>Combine Sequence Rates</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="label_9">
+     <property name="text">
+      <string>Recognize available cores</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QComboBox" name="recognize_available_cores">
+     <item>
+      <property name="text">
+       <string>Yes</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>No</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="1" column="2">
+    <widget class="QLabel" name="label_23">
+     <property name="text">
+      <string>Label Key</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="3">
+    <widget class="QComboBox" name="label_key">
+     <item>
+      <property name="text">
+       <string>tissue</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>cell culture</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="2" column="2">
+    <widget class="QLabel" name="label_26">
+     <property name="text">
+      <string>Minimum Non-zero points (rate)</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
      </property>
     </widget>
    </item>
-   <item row="11" column="5">
-    <widget class="QDoubleSpinBox" name="median_absolute_residuals_cutoff_value_two_points">
-     <property name="decimals">
-      <number>3</number>
+   <item row="2" column="3">
+    <widget class="QSpinBox" name="minimum_nonzero_points_rate">
+     <property name="minimum">
+      <number>1</number>
      </property>
     </widget>
    </item>
-   <item row="12" column="0">
-    <widget class="QLabel" name="label_27">
+   <item row="4" column="2">
+    <widget class="QLabel" name="label_29">
      <property name="text">
-      <string>mz proximity filter (ppm)</string>
-     </property>
-    </widget>
-   </item>
-   <item row="12" column="4">
-    <widget class="QLabel" name="label_39">
-     <property name="text">
-      <string>median absolute residuals cutoff general</string>
+      <string>Minimum allowed rate</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
      </property>
     </widget>
    </item>
-   <item row="12" column="5">
-    <widget class="QDoubleSpinBox" name="median_absolute_residuals_cutoff_value_general">
-     <property name="decimals">
-      <number>3</number>
-     </property>
-    </widget>
+   <item row="4" column="3">
+    <widget class="QDoubleSpinBox" name="min_allowed_rate"/>
    </item>
-   <item row="13" column="0">
-    <widget class="QLabel" name="label_31">
+   <item row="5" column="2">
+    <widget class="QLabel" name="label_30">
      <property name="text">
-      <string>Retention Time proximity filter (min)</string>
+      <string>Maximum allowed rate</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
      </property>
     </widget>
    </item>
-   <item row="13" column="4">
+   <item row="5" column="3">
+    <widget class="QDoubleSpinBox" name="max_allowed_rate"/>
+   </item>
+   <item row="6" column="3">
+    <widget class="QComboBox" name="error_graph_option">
+     <item>
+      <property name="text">
+       <string>none</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>approximate</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>exact</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="6" column="2">
+    <widget class="QLabel" name="label_40">
+     <property name="text">
+      <string>Error Graph Option</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="label_18">
+     <property name="text">
+      <string>Default Cores to Use</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <widget class="QSpinBox" name="default_cores">
+     <property name="minimum">
+      <number>1</number>
+     </property>
+     <property name="maximum">
+      <number>60</number>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
     <widget class="QLabel" name="label_41">
      <property name="text">
       <string>graph file type</string>
@@ -478,7 +591,7 @@
      </property>
     </widget>
    </item>
-   <item row="13" column="5">
+   <item row="4" column="1">
     <widget class="QComboBox" name="graph_file_type">
      <item>
       <property name="text">
@@ -497,139 +610,38 @@
      </item>
     </widget>
    </item>
-   <item row="14" column="0">
-    <widget class="QLabel" name="label_7">
+   <item row="5" column="0">
+    <widget class="QLabel" name="label_6">
      <property name="font">
       <font>
        <pointsize>12</pointsize>
       </font>
      </property>
      <property name="text">
-      <string>Theory Generation</string>
+      <string>Extract</string>
      </property>
     </widget>
    </item>
-   <item row="14" column="4">
-    <widget class="QLabel" name="label_42">
+   <item row="6" column="1">
+    <widget class="QComboBox" name="rt_unit">
+     <item>
+      <property name="text">
+       <string>sec</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>min</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="label_19">
      <property name="text">
-      <string>How to combine sequences to protein</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
+      <string>Retention Time Unit</string>
      </property>
     </widget>
-   </item>
-   <item row="14" column="5">
-    <widget class="QComboBox" name="protein_roll_up_type">
-     <item>
-      <property name="text">
-       <string>Average</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>Median</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="15" column="0">
-    <widget class="QLabel" name="label_23">
-     <property name="text">
-      <string>Label Key</string>
-     </property>
-    </widget>
-   </item>
-   <item row="15" column="1" colspan="2">
-    <widget class="QComboBox" name="label_key">
-     <item>
-      <property name="text">
-       <string>tissue</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>cell culture</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="15" column="4">
-    <widget class="QLabel" name="label_43">
-     <property name="text">
-      <string>Verbose Output</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="15" column="5">
-    <widget class="QComboBox" name="verbose_output">
-     <item>
-      <property name="text">
-       <string>Yes</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>No</string>
-      </property>
-     </item>
-    </widget>
-   </item>
-   <item row="16" column="0">
-    <widget class="QLabel" name="label_24">
-     <property name="text">
-      <string>Minimum Peptide Length</string>
-     </property>
-    </widget>
-   </item>
-   <item row="16" column="1">
-    <widget class="QSpinBox" name="min_AA_length">
-     <property name="minimum">
-      <number>1</number>
-     </property>
-     <property name="maximum">
-      <number>99</number>
-     </property>
-    </widget>
-   </item>
-   <item row="17" column="0">
-    <widget class="QLabel" name="label_25">
-     <property name="text">
-      <string>Minimum Allowed N Value</string>
-     </property>
-    </widget>
-   </item>
-   <item row="17" column="1">
-    <widget class="QSpinBox" name="min_allowed_n_value">
-     <property name="minimum">
-      <number>1</number>
-     </property>
-     <property name="maximum">
-      <number>99</number>
-     </property>
-    </widget>
-   </item>
-   <item row="12" column="2">
-    <widget class="QSpinBox" name="mz_prox_filter">
-     <property name="minimum">
-      <number>1</number>
-     </property>
-     <property name="maximum">
-      <number>1000</number>
-     </property>
-     <property name="singleStep">
-      <number>5</number>
-     </property>
-     <property name="value">
-      <number>100</number>
-     </property>
-    </widget>
-   </item>
-   <item row="13" column="2">
-    <widget class="QDoubleSpinBox" name="rt_prox_filter"/>
    </item>
   </layout>
  </widget>
