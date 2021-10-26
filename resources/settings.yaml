@@ -88,7 +88,7 @@ max_enrichment_allowed: !!float .3
 #options are "none", "approximate" or "exact"
 error_estimation: !!str "none" #add
 
-min_non_zero_timepoints_rate: !!int 3
+min_non_zero_timepoints_rate: !!int 1
 
 #$don't allow less than 4 or it will prevent spline fitting
 min_allowed_timepoints_enrichment: !!int 4
