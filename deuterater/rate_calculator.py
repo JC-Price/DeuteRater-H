@@ -515,6 +515,10 @@ class RateCalculator():
             legend_name = "real cost of k"
             #$possible to error out here so catch it if so
             try :
+                #$mimic up top.
+                if 0 not in time_data:
+                    time_data = np.insert(time_data, 0,0)
+                    normed_isotope_data = np.insert(normed_isotope_data, 0, y0,0)
                 error_array=[sse(x,time_data,normed_isotope_data,y0, n_isos) for x in error_xv]
                 graph_optimization_of_error(k_value, error_xv, error_array, graph_name_optimize, sample_id + "_" + sequence_name, legend_name, graph_type)
             except ODEintWarning:
