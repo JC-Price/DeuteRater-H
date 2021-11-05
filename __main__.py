@@ -109,7 +109,7 @@ step_object_dict = {
     "Extract":Extract_object,
     "Provide Time and Enrichment":Time_Enrich_object,
     "Combine Extracted Files": Combine_object,
-    "Calculate Delta by Enrichment":delta_by_enrichment, 
+    "Calculate Baseline Enrichment":delta_by_enrichment, 
     "Rate Calculation": sequence_rate_calculation,
     "Combine Sequence Rates": protiein_rate_combination
     }
@@ -547,7 +547,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                     enrichment_path=previous_output_file,
                     out_path= step_object_dict[analysis_step].full_filename,
                     settings_path=rate_settings_file,
-                    needed_columns = step_object_dict["Calculate Delta by Enrichment"].required_columns
+                    needed_columns = step_object_dict["Calculate Baseline Enrichment"].required_columns
                 )
                 combiner.prepare()
                 combiner.write()
@@ -555,7 +555,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 previous_output_file = step_object_dict[analysis_step].full_filename
                 
             #$this step is to get all the numberical values necessary to do the fitting in the following steps
-            elif analysis_step == "Calculate Delta by Enrichment":
+            elif analysis_step == "Calculate Baseline Enrichment":
                 if previous_output_file == "":
                     previous_output_file = self.collect_single_file(
                         "combine output", 
@@ -587,7 +587,7 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 
                 if previous_output_file == "":
                     previous_output_file = self.collect_single_file(
-                        "calculate delta by enrichment", 
+                        "Calculate Baseline Enrichment", 
                         analysis_step, 
                         "spreadsheet (*.csv *.tsv)"
                     )
