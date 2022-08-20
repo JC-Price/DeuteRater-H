@@ -268,7 +268,6 @@ class MainGuiObject(QtWidgets.QMainWindow, loaded_ui):
                 if guide_file_type != "Template":
                     converter.write(save_file)
                 else:
-                   template_header = [PeaksXplus.correct_header_names[name] for name in converter_header]
                    df = pd.DataFrame(columns=template_header)
                    df.to_csv(save_file, sep = ',', index =False)
                 break
